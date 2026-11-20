@@ -106,7 +106,7 @@ def test_overview_group_filter_narrows_results(live_server):
 def test_metrics_list_exposes_codes_and_layers(live_server):
     data = get(live_server, "/api/metrics")
     by_id = {m["id"]: m for m in data["metrics"]}
-    assert by_id["mr_impl_cycle"]["code"] == "2.0.1 / 2.5"
+    assert by_id["mr_impl_cycle"]["code"] == "2.0.1"
     assert by_id["code_gen_rate"]["code"] == "3.3"
     assert by_id["headcount_center"]["hidden"] is True
     assert by_id["rde_index"]["indicator"] is True
@@ -116,7 +116,7 @@ def test_metrics_list_exposes_codes_and_layers(live_server):
 def test_metric_detail_includes_breakdown_by_project_group(live_server):
     data = get(live_server, "/api/metrics/mr_impl_cycle?granularity=month&periods=12")
     assert data["id"] == "mr_impl_cycle"
-    assert data["code"] == "2.0.1 / 2.5"
+    assert data["code"] == "2.0.1"
     assert "projectGroup" in data["breakdown"]
     assert data["series"]
 

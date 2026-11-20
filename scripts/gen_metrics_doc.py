@@ -16,9 +16,8 @@ ORDER = ["detail", "process", "base"]
 
 def code_key(metric: dict) -> tuple:
     """按需求清单编号排序：2.0.1 → 2.1 → 2.10 → 3.1。"""
-    code = (metric.get("code") or "").split(" / ")[0]
     parts = []
-    for chunk in code.split("."):
+    for chunk in (metric.get("code") or "").split("."):
         parts.append(int(chunk) if chunk.isdigit() else 99)
     return (parts, metric["id"])
 

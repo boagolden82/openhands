@@ -46,7 +46,7 @@ def test_visible_metrics_carry_direction_and_target(onto):
 def test_metric_codes_match_the_published_numbering(onto):
     """指标编号必须与需求清单一致，便于与业务方对账。"""
     expected = {
-        "mr_impl_cycle": "2.0.1 / 2.5",
+        "mr_impl_cycle": "2.0.1",
         "rr_on_time_rate": "2.0.2",
         "mr_delivery_per_capita": "2.1",
         "mr_impl_per_capita": "2.2",
@@ -71,10 +71,10 @@ def test_metric_codes_match_the_published_numbering(onto):
         assert metric["code"] == code, mid
 
 
-def test_duplicate_impl_cycle_code_covers_both_entries(onto):
-    """需求清单中 2.0.1 与 2.5 都是 MR实现周期，一个指标覆盖两个编号。"""
+def test_impl_cycle_uses_single_code(onto):
+    """MR实现周期只取一个编号 2.0.1，不重复计数。"""
     metric = onto.metric("mr_impl_cycle")
-    assert "2.0.1" in metric["code"] and "2.5" in metric["code"]
+    assert metric["code"] == "2.0.1"
 
 
 def test_subsumption_is_transitive(onto):
