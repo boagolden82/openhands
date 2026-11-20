@@ -181,8 +181,8 @@
         <div class="mt-name"><strong>${esc(m.label)}${m.indicator ? ' ★' : ''}</strong>
           <small>${esc(m.id)}</small></div>
         <div class="mt-val">${v?.value ?? '—'}<span>${esc(m.unit)}</span></div>
-        <div class="type-tag ${m.type}">${({ atomic: '原子', derived: '派生', composite: '复合', pair: '配对' })[m.type] || m.type}</div>
-        <div>${v ? statusPill(v) : ''}</div>
+        <div class="type-tag ${m.type}">${({ atomic: '原子', derived: '派生', composite: '复合', pair: '配对' })[m.type] || m.type}${m.hidden ? ' · 内部' : ''}</div>
+        <div>${m.hidden ? '<span class="pill internal">内部口径</span>' : (v ? statusPill(v) : '')}</div>
       </div>`;
     }).join('') || '<div class="empty">无匹配指标</div>';
 

@@ -227,6 +227,7 @@ select:focus, .search:focus, input[type="number"]:focus { border-color: var(--ac
 .pill.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .pill.off { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
 .pill.no_data, .pill.unknown { background: var(--line); color: var(--muted); }
+.pill.internal { background: var(--line); color: var(--muted); }
 
 .delta { font-variant-numeric: tabular-nums; font-weight: 600; }
 .delta.good { color: var(--ok); }
