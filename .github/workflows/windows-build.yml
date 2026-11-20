@@ -1,0 +1,99 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: python -m pip install --upgrade pip pytest
+      - name: Run tests
+        run: python -m pytest tests -q
+
+  build-windows:
+    name: Build Windows exe
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Build single-file exe
+        run: python -m PyInstaller --noconfirm --clean rde_onto.spec
+
+      - name: Verify exe starts and serves the app
+        shell: pwsh
+        run: |
+          $env:RDE_PORT = "8791"
+          $env:RDE_NO_BROWSER = "1"
+          $env:RDE_DATA_DIR = "$env:RUNNER_TEMP\\rde-smoke"
+          $proc = Start-Process -FilePath "dist\\RDE-Onto.exe" -PassThru -WindowStyle Hidden
+          $ok = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Seconds 2
+            try {
+              $resp = Invoke-RestMethod -Uri "http://127.0.0.1:8791/api/health" -TimeoutSec 3
+              if ($resp.status -eq "ok" -and $resp.counts.facts -gt 0) {
+                Write-Host "health ok, facts=$($resp.counts.facts)"
+                $ok = $true
+                break
+              }
+            } catch { }
+          }
+          if (-not $ok) {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            throw "exe did not become healthy"
+          }
+          $overview = Invoke-RestMethod -Uri "http://127.0.0.1:8791/api/overview" -TimeoutSec 20
+          if (-not $overview.indicator) { throw "overview missing indicator" }
+          Write-Host "indicator=$($overview.indicator.label) value=$($overview.indicator.value)"
+          Stop-Process -Id $proc.Id -Force
+
+      - name: Assemble release folder
+        shell: pwsh
+        run: |
+          $dir = "dist\\RDE-Onto-win64"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Copy-Item "dist\\RDE-Onto.exe" $dir
+          Copy-Item "start.bat" $dir
+          Copy-Item "README.md" $dir
+          Copy-Item -Recurse "docs" "$dir\\docs"
+          Compress-Archive -Path "$dir\\*" -DestinationPath "dist\\RDE-Onto-win64.zip" -Force
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RDE-Onto-win64
+          path: dist/RDE-Onto-win64.zip
+          retention-days: 90
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/RDE-Onto-win64.zip
+          generate_release_notes: true

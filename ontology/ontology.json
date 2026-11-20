@@ -1,0 +1,1282 @@
+{
+  "version": "1.0.0",
+  "name": "RDE-Onto 研发效能本体",
+  "description": "面向研发提效的领域本体：以『实体-关系-事实-指标』四层结构描述研发活动，指标由本体推理生成而非硬编码。",
+  "namespaces": {
+    "core": "上层本体：实体、关系、事件、度量",
+    "dev": "研发领域本体：组织、需求、迭代、代码、缺陷、流水线、部署、事件",
+    "metric": "指标本体：原子指标、派生指标、维度、口径"
+  },
+  "dimensions": [
+    {
+      "id": "org",
+      "name": "组织",
+      "description": "团队/部门层级"
+    },
+    {
+      "id": "team",
+      "name": "团队",
+      "description": "研发团队"
+    },
+    {
+      "id": "project",
+      "name": "项目",
+      "description": "业务项目"
+    },
+    {
+      "id": "repo",
+      "name": "代码库",
+      "description": "代码仓库"
+    },
+    {
+      "id": "sprint",
+      "name": "迭代",
+      "description": "Scrum 迭代"
+    },
+    {
+      "id": "time",
+      "name": "时间",
+      "description": "按周/月粒度的时间桶"
+    },
+    {
+      "id": "worktype",
+      "name": "工作类型",
+      "description": "需求/缺陷/技术债"
+    },
+    {
+      "id": "env",
+      "name": "环境",
+      "description": "开发/测试/预发/生产"
+    }
+  ],
+  "classes": [
+    {
+      "id": "core:Entity",
+      "label": "实体",
+      "parent": null,
+      "namespace": "core",
+      "description": "一切可被度量的对象"
+    },
+    {
+      "id": "core:Actor",
+      "label": "参与者",
+      "parent": "core:Entity",
+      "namespace": "core",
+      "description": "产生研发行为的人或系统"
+    },
+    {
+      "id": "core:Event",
+      "label": "事件",
+      "parent": "core:Entity",
+      "namespace": "core",
+      "description": "带时间戳的发生"
+    },
+    {
+      "id": "core:Artifact",
+      "label": "产出物",
+      "parent": "core:Entity",
+      "namespace": "core",
+      "description": "研发过程中产生的制品"
+    },
+    {
+      "id": "dev:Organization",
+      "label": "组织",
+      "parent": "core:Actor",
+      "namespace": "dev",
+      "description": "公司/部门/团队的层级聚合"
+    },
+    {
+      "id": "dev:Team",
+      "label": "团队",
+      "parent": "dev:Organization",
+      "namespace": "dev",
+      "description": "承担交付的最小组织单元"
+    },
+    {
+      "id": "dev:Person",
+      "label": "人员",
+      "parent": "core:Actor",
+      "namespace": "dev",
+      "description": "研发人员"
+    },
+    {
+      "id": "dev:Project",
+      "label": "项目",
+      "parent": "core:Artifact",
+      "namespace": "dev",
+      "description": "一组持续演进的软件产品"
+    },
+    {
+      "id": "dev:Repository",
+      "label": "代码库",
+      "parent": "core:Artifact",
+      "namespace": "dev",
+      "description": "受版本控制的代码集合"
+    },
+    {
+      "id": "dev:Sprint",
+      "label": "迭代",
+      "parent": "core:Artifact",
+      "namespace": "dev",
+      "description": "固定周期的交付批次"
+    },
+    {
+      "id": "dev:WorkItem",
+      "label": "工作项",
+      "parent": "core:Artifact",
+      "namespace": "dev",
+      "description": "可跟踪的工作单元"
+    },
+    {
+      "id": "dev:Requirement",
+      "label": "需求",
+      "parent": "dev:WorkItem",
+      "namespace": "dev",
+      "description": "用户价值描述"
+    },
+    {
+      "id": "dev:Story",
+      "label": "用户故事",
+      "parent": "dev:Requirement",
+      "namespace": "dev",
+      "description": "可在一个迭代内交付的需求切片"
+    },
+    {
+      "id": "dev:Defect",
+      "label": "缺陷",
+      "parent": "dev:WorkItem",
+      "namespace": "dev",
+      "description": "与预期不符的软件行为"
+    },
+    {
+      "id": "dev:Task",
+      "label": "任务",
+      "parent": "dev:WorkItem",
+      "namespace": "dev",
+      "description": "技术性工作单元"
+    },
+    {
+      "id": "dev:TechDebt",
+      "label": "技术债",
+      "parent": "dev:Task",
+      "namespace": "dev",
+      "description": "为长期健康度偿还的技术工作"
+    },
+    {
+      "id": "dev:Commit",
+      "label": "提交",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "代码变更事件"
+    },
+    {
+      "id": "dev:PullRequest",
+      "label": "合并请求",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "代码评审与合入事件"
+    },
+    {
+      "id": "dev:Review",
+      "label": "代码评审",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "对合并请求的评审行为"
+    },
+    {
+      "id": "dev:PipelineRun",
+      "label": "流水线运行",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "一次 CI/CD 执行"
+    },
+    {
+      "id": "dev:Deployment",
+      "label": "部署",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "制品进入环境的事件"
+    },
+    {
+      "id": "dev:Incident",
+      "label": "线上事件",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "影响生产可用性的事件"
+    },
+    {
+      "id": "dev:Release",
+      "label": "发布",
+      "parent": "core:Event",
+      "namespace": "dev",
+      "description": "面向用户的版本发布"
+    },
+    {
+      "id": "metric:Metric",
+      "label": "指标",
+      "parent": "core:Entity",
+      "namespace": "metric",
+      "description": "对本体的量化观察"
+    },
+    {
+      "id": "metric:AtomicMetric",
+      "label": "原子指标",
+      "parent": "metric:Metric",
+      "namespace": "metric",
+      "description": "直接由事实聚合得到，不可再拆"
+    },
+    {
+      "id": "metric:DerivedMetric",
+      "label": "派生指标",
+      "parent": "metric:Metric",
+      "namespace": "metric",
+      "description": "由其他指标按公式计算"
+    },
+    {
+      "id": "metric:Indicator",
+      "label": "北极星指标",
+      "parent": "metric:DerivedMetric",
+      "namespace": "metric",
+      "description": "用于衡量整体提效成效的顶层指标"
+    }
+  ],
+  "relations": [
+    {
+      "id": "belongsTo",
+      "label": "隶属于",
+      "domain": "core:Entity",
+      "range": "core:Entity",
+      "transitive": true,
+      "inverse": "hasMember"
+    },
+    {
+      "id": "hasMember",
+      "label": "包含",
+      "domain": "core:Entity",
+      "range": "core:Entity",
+      "transitive": true,
+      "inverse": "belongsTo"
+    },
+    {
+      "id": "ownedBy",
+      "label": "归属团队",
+      "domain": "core:Artifact",
+      "range": "dev:Team",
+      "transitive": false,
+      "inverse": "owns"
+    },
+    {
+      "id": "owns",
+      "label": "负责",
+      "domain": "dev:Team",
+      "range": "core:Artifact",
+      "transitive": false,
+      "inverse": "ownedBy"
+    },
+    {
+      "id": "assignedTo",
+      "label": "指派给",
+      "domain": "dev:WorkItem",
+      "range": "dev:Person",
+      "transitive": false,
+      "inverse": "worksOn"
+    },
+    {
+      "id": "worksOn",
+      "label": "参与",
+      "domain": "dev:Person",
+      "range": "dev:WorkItem",
+      "transitive": false,
+      "inverse": "assignedTo"
+    },
+    {
+      "id": "inSprint",
+      "label": "属于迭代",
+      "domain": "dev:WorkItem",
+      "range": "dev:Sprint",
+      "transitive": false,
+      "inverse": "containsItem"
+    },
+    {
+      "id": "containsItem",
+      "label": "包含工作项",
+      "domain": "dev:Sprint",
+      "range": "dev:WorkItem",
+      "transitive": false,
+      "inverse": "inSprint"
+    },
+    {
+      "id": "implements",
+      "label": "实现",
+      "domain": "dev:PullRequest",
+      "range": "dev:WorkItem",
+      "transitive": false,
+      "inverse": "implementedBy"
+    },
+    {
+      "id": "implementedBy",
+      "label": "由...实现",
+      "domain": "dev:WorkItem",
+      "range": "dev:PullRequest",
+      "transitive": false,
+      "inverse": "implements"
+    },
+    {
+      "id": "changes",
+      "label": "变更",
+      "domain": "dev:Commit",
+      "range": "dev:Repository",
+      "transitive": false,
+      "inverse": "changedBy"
+    },
+    {
+      "id": "changedBy",
+      "label": "被变更",
+      "domain": "dev:Repository",
+      "range": "dev:Commit",
+      "transitive": false,
+      "inverse": "changes"
+    },
+    {
+      "id": "triggeredBy",
+      "label": "由...触发",
+      "domain": "dev:PipelineRun",
+      "range": "dev:Commit",
+      "transitive": false,
+      "inverse": "triggers"
+    },
+    {
+      "id": "triggers",
+      "label": "触发",
+      "domain": "dev:Commit",
+      "range": "dev:PipelineRun",
+      "transitive": false,
+      "inverse": "triggeredBy"
+    },
+    {
+      "id": "deploys",
+      "label": "部署制品",
+      "domain": "dev:Deployment",
+      "range": "dev:Repository",
+      "transitive": false,
+      "inverse": "deployedBy"
+    },
+    {
+      "id": "deployedBy",
+      "label": "被部署",
+      "domain": "dev:Repository",
+      "range": "dev:Deployment",
+      "transitive": false,
+      "inverse": "deploys"
+    },
+    {
+      "id": "causedBy",
+      "label": "由...引起",
+      "domain": "dev:Incident",
+      "range": "dev:Deployment",
+      "transitive": false,
+      "inverse": "caused"
+    },
+    {
+      "id": "caused",
+      "label": "导致",
+      "domain": "dev:Deployment",
+      "range": "dev:Incident",
+      "transitive": false,
+      "inverse": "causedBy"
+    },
+    {
+      "id": "dependsOn",
+      "label": "依赖",
+      "domain": "metric:Metric",
+      "range": "metric:Metric",
+      "transitive": true,
+      "inverse": "dependedBy"
+    },
+    {
+      "id": "dependedBy",
+      "label": "被依赖",
+      "domain": "metric:Metric",
+      "range": "metric:Metric",
+      "transitive": true,
+      "inverse": "dependsOn"
+    }
+  ],
+  "factTypes": [
+    {
+      "id": "workitem.created",
+      "label": "工作项创建",
+      "subject": "dev:WorkItem",
+      "timeField": "created_at",
+      "measures": [
+        "story_points"
+      ],
+      "fields": [
+        "status",
+        "title",
+        "priority",
+        "escaped",
+        "labels"
+      ],
+      "description": "工作项进入系统的时刻、规模与状态；类别由主体所属本体类推理得出"
+    },
+    {
+      "id": "workitem.closed",
+      "label": "工作项关闭",
+      "subject": "dev:WorkItem",
+      "timeField": "closed_at",
+      "measures": [],
+      "fields": [
+        "kind",
+        "status"
+      ],
+      "description": "工作项完成时刻"
+    },
+    {
+      "id": "commit.pushed",
+      "label": "代码提交",
+      "subject": "dev:Commit",
+      "timeField": "committed_at",
+      "measures": [
+        "lines_added",
+        "lines_deleted",
+        "lines_changed",
+        "churn_lines",
+        "files_changed"
+      ],
+      "fields": [
+        "author",
+        "repo",
+        "message"
+      ],
+      "description": "一次代码提交"
+    },
+    {
+      "id": "pr.opened",
+      "label": "合并请求创建",
+      "subject": "dev:PullRequest",
+      "timeField": "created_at",
+      "measures": [
+        "lines_changed"
+      ],
+      "fields": [
+        "author",
+        "repo",
+        "workitem"
+      ],
+      "description": "合并请求创建"
+    },
+    {
+      "id": "pr.merged",
+      "label": "合并请求合入",
+      "subject": "dev:PullRequest",
+      "timeField": "merged_at",
+      "measures": [
+        "lines_changed",
+        "open_hours"
+      ],
+      "fields": [
+        "author",
+        "repo",
+        "workitem"
+      ],
+      "description": "合并请求合入主干"
+    },
+    {
+      "id": "review.submitted",
+      "label": "评审提交",
+      "subject": "dev:Review",
+      "timeField": "submitted_at",
+      "measures": [
+        "comments"
+      ],
+      "fields": [
+        "reviewer",
+        "pr",
+        "verdict"
+      ],
+      "description": "代码评审意见"
+    },
+    {
+      "id": "pipeline.completed",
+      "label": "流水线完成",
+      "subject": "dev:PipelineRun",
+      "timeField": "finished_at",
+      "measures": [
+        "duration_sec"
+      ],
+      "fields": [
+        "status",
+        "repo",
+        "stage"
+      ],
+      "description": "一次 CI 执行结果"
+    },
+    {
+      "id": "deployment.finished",
+      "label": "部署完成",
+      "subject": "dev:Deployment",
+      "timeField": "finished_at",
+      "measures": [
+        "duration_sec",
+        "lead_time_hours"
+      ],
+      "fields": [
+        "env",
+        "repo",
+        "status",
+        "lead_time_hours"
+      ],
+      "description": "一次部署完成"
+    },
+    {
+      "id": "incident.resolved",
+      "label": "事件恢复",
+      "subject": "dev:Incident",
+      "timeField": "resolved_at",
+      "measures": [
+        "mttr_minutes"
+      ],
+      "fields": [
+        "severity",
+        "repo",
+        "team"
+      ],
+      "description": "线上事件恢复"
+    },
+    {
+      "id": "sprint.completed",
+      "label": "迭代结束",
+      "subject": "dev:Sprint",
+      "timeField": "ended_at",
+      "measures": [
+        "committed_points",
+        "completed_points"
+      ],
+      "fields": [
+        "team"
+      ],
+      "description": "迭代承诺与交付对比"
+    },
+    {
+      "id": "release.published",
+      "label": "版本发布",
+      "subject": "dev:Release",
+      "timeField": "released_at",
+      "measures": [],
+      "fields": [
+        "version",
+        "project",
+        "repo"
+      ],
+      "description": "面向用户发布"
+    }
+  ],
+  "metrics": [
+    {
+      "id": "lead_time_hours",
+      "label": "交付前置时间",
+      "unit": "h",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "deployment.finished",
+      "agg": "avg",
+      "measure": "lead_time_hours",
+      "direction": "down",
+      "target": 48,
+      "precision": 1,
+      "description": "从需求进入开发到部署完成的中位时长，衡量端到端流动效率。",
+      "formula": "median(deployment.lead_time_hours)",
+      "owner": "研发效能平台",
+      "primary": true
+    },
+    {
+      "id": "deploy_frequency",
+      "label": "部署频率",
+      "unit": "次/周",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "deployment.finished",
+      "agg": "count",
+      "measure": null,
+      "direction": "up",
+      "target": 10,
+      "precision": 1,
+      "description": "统计周期内完成的部署次数，按周归一化。",
+      "formula": "count(deployment) / window_weeks",
+      "owner": "研发效能平台",
+      "normalize": {
+        "per": "week"
+      },
+      "primary": true
+    },
+    {
+      "id": "change_failure_rate",
+      "label": "变更失败率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "quality",
+      "expr": "incident_count / deploy_count * 100",
+      "deps": [
+        "incident_count",
+        "deploy_count"
+      ],
+      "direction": "down",
+      "target": 15,
+      "precision": 1,
+      "description": "由部署引发的线上事件占全部部署的比例。",
+      "formula": "incidents / deployments × 100%",
+      "owner": "SRE",
+      "primary": true
+    },
+    {
+      "id": "mttr_minutes",
+      "label": "平均恢复时长",
+      "unit": "min",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "incident.resolved",
+      "agg": "avg",
+      "measure": "mttr_minutes",
+      "direction": "down",
+      "target": 60,
+      "precision": 0,
+      "description": "线上事件从发生到恢复的平均耗时。",
+      "formula": "avg(incident.mttr_minutes)",
+      "owner": "SRE",
+      "primary": true
+    },
+    {
+      "id": "pr_cycle_hours",
+      "label": "评审周期",
+      "unit": "h",
+      "type": "derived",
+      "layer": "flow",
+      "expr": "pr_open_hours_total / pr_merged_count",
+      "deps": [
+        "pr_open_hours_total",
+        "pr_merged_count"
+      ],
+      "direction": "down",
+      "target": 24,
+      "precision": 1,
+      "description": "合并请求从创建到合入的平均时长，衡量协作摩擦。",
+      "formula": "Σ(merged_at - created_at) / merged_count",
+      "owner": "工程效能",
+      "primary": true
+    },
+    {
+      "id": "ci_success_rate",
+      "label": "流水线成功率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "quality",
+      "expr": "ci_success_count / ci_total_count * 100",
+      "deps": [
+        "ci_success_count",
+        "ci_total_count"
+      ],
+      "direction": "up",
+      "target": 95,
+      "precision": 1,
+      "description": "CI 流水线执行成功的比例，反映测试与构建的稳定性。",
+      "formula": "success_runs / total_runs × 100%",
+      "owner": "工程效能",
+      "primary": true
+    },
+    {
+      "id": "ci_duration_minutes",
+      "label": "流水线时长",
+      "unit": "min",
+      "type": "derived",
+      "layer": "flow",
+      "expr": "ci_duration_sec_total / ci_total_count / 60",
+      "deps": [
+        "ci_duration_sec_total",
+        "ci_total_count"
+      ],
+      "direction": "down",
+      "target": 15,
+      "precision": 1,
+      "description": "单次流水线平均执行时长，直接影响反馈速度。",
+      "formula": "Σduration / runs / 60",
+      "owner": "工程效能",
+      "primary": true
+    },
+    {
+      "id": "throughput_points",
+      "label": "交付吞吐",
+      "unit": "点/周",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "sprint.completed",
+      "agg": "sum",
+      "measure": "completed_points",
+      "direction": "up",
+      "target": 80,
+      "precision": 1,
+      "description": "每迭代完成的故事点，按周归一化后得到团队稳定交付速率（组织级口径）。",
+      "formula": "Σcompleted_points / window_weeks",
+      "owner": "敏捷教练",
+      "normalize": {
+        "per": "week"
+      },
+      "primary": true
+    },
+    {
+      "id": "sprint_completion_rate",
+      "label": "迭代达成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "delivery",
+      "expr": "sprint_completed_points / sprint_committed_points * 100",
+      "deps": [
+        "sprint_completed_points",
+        "sprint_committed_points"
+      ],
+      "direction": "up",
+      "target": 90,
+      "precision": 1,
+      "description": "迭代实际交付与承诺的比例，衡量计划可信度。",
+      "formula": "completed / committed × 100%",
+      "owner": "敏捷教练",
+      "primary": true
+    },
+    {
+      "id": "defect_escape_rate",
+      "label": "缺陷逃逸率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "quality",
+      "expr": "defect_escaped / defect_total * 100",
+      "deps": [
+        "defect_escaped",
+        "defect_total"
+      ],
+      "direction": "down",
+      "target": 10,
+      "precision": 1,
+      "description": "上线后才被发现的缺陷占全部缺陷的比例。",
+      "formula": "escaped_defects / all_defects × 100%",
+      "owner": "质量保障",
+      "primary": true
+    },
+    {
+      "id": "code_churn_rate",
+      "label": "代码返工率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "quality",
+      "expr": "churn_lines / lines_changed_total * 100",
+      "deps": [
+        "churn_lines",
+        "lines_changed_total"
+      ],
+      "direction": "down",
+      "target": 20,
+      "precision": 1,
+      "description": "提交后两周内被删除的行数占比，反映返工与需求不稳定。",
+      "formula": "churn_lines / changed_lines × 100%",
+      "owner": "工程效能",
+      "primary": true
+    },
+    {
+      "id": "review_coverage",
+      "label": "评审覆盖率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "quality",
+      "expr": "pr_with_review_count / pr_merged_count * 100",
+      "deps": [
+        "pr_with_review_count",
+        "pr_merged_count"
+      ],
+      "direction": "up",
+      "target": 95,
+      "precision": 1,
+      "description": "合入前至少被一次评审的合并请求比例。",
+      "formula": "reviewed_prs / merged_prs × 100%",
+      "owner": "工程效能",
+      "primary": true
+    },
+    {
+      "id": "wip_per_person",
+      "label": "人均在制品",
+      "unit": "项",
+      "type": "derived",
+      "layer": "flow",
+      "expr": "wip_total / active_people",
+      "deps": [
+        "wip_total",
+        "active_people"
+      ],
+      "direction": "down",
+      "target": 3,
+      "precision": 2,
+      "description": "同时进行中的工作项数量除以活跃人数，衡量并行度与切换成本。",
+      "formula": "WIP / active_people",
+      "owner": "敏捷教练",
+      "primary": true
+    },
+    {
+      "id": "incident_count",
+      "label": "线上事件数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "incident.resolved",
+      "agg": "count",
+      "measure": null,
+      "direction": "down",
+      "target": 3,
+      "precision": 0,
+      "description": "统计周期内发生的线上事件数量。",
+      "formula": "count(incident)",
+      "owner": "SRE",
+      "hidden": true
+    },
+    {
+      "id": "deploy_count",
+      "label": "部署次数",
+      "unit": "次",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "deployment.finished",
+      "agg": "count",
+      "measure": null,
+      "direction": "up",
+      "target": 40,
+      "precision": 0,
+      "description": "统计周期内完成的部署总次数。",
+      "formula": "count(deployment)",
+      "owner": "研发效能平台",
+      "hidden": true
+    },
+    {
+      "id": "pr_merged_count",
+      "label": "合入合并请求数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "pr.merged",
+      "agg": "count",
+      "measure": null,
+      "direction": "up",
+      "target": 80,
+      "precision": 0,
+      "description": "统计周期内合入的合并请求数量。",
+      "formula": "count(pr.merged)",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "pr_open_hours_total",
+      "label": "合并请求滞留时长合计",
+      "unit": "h",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "pr.merged",
+      "agg": "sum",
+      "measure": "open_hours",
+      "direction": "down",
+      "target": 1800,
+      "precision": 0,
+      "description": "所有合入请求从创建到合入的时长之和，作为评审周期的分子。",
+      "formula": "Σ(merged_at - created_at)",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "pr_with_review_count",
+      "label": "有评审的合并请求数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "review.submitted",
+      "agg": "distinct",
+      "measure": "pr",
+      "direction": "up",
+      "target": 76,
+      "precision": 0,
+      "description": "去重统计收到评审的合并请求。",
+      "formula": "count(distinct review.pr)",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "ci_total_count",
+      "label": "流水线运行次数",
+      "unit": "次",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "pipeline.completed",
+      "agg": "count",
+      "measure": null,
+      "direction": "up",
+      "target": 400,
+      "precision": 0,
+      "description": "统计周期内流水线执行总次数。",
+      "formula": "count(pipeline)",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "ci_success_count",
+      "label": "流水线成功次数",
+      "unit": "次",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "pipeline.completed",
+      "agg": "count",
+      "measure": null,
+      "filter": {
+        "field": "status",
+        "op": "eq",
+        "value": "success"
+      },
+      "direction": "up",
+      "target": 380,
+      "precision": 0,
+      "description": "status=success 的流水线运行次数。",
+      "formula": "count(pipeline where status=success)",
+      "owner": "工程效能"
+    },
+    {
+      "id": "ci_duration_sec_total",
+      "label": "流水线时长合计",
+      "unit": "s",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "pipeline.completed",
+      "agg": "sum",
+      "measure": "duration_sec",
+      "direction": "down",
+      "target": 360000,
+      "precision": 0,
+      "description": "所有流水线运行时长之和。",
+      "formula": "Σduration_sec",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "sprint_committed_points",
+      "label": "迭代承诺点数",
+      "unit": "点",
+      "type": "atomic",
+      "layer": "delivery",
+      "fact": "sprint.completed",
+      "agg": "sum",
+      "measure": "committed_points",
+      "direction": "up",
+      "target": 220,
+      "precision": 0,
+      "description": "迭代开始时团队承诺的故事点合计。",
+      "formula": "Σcommitted_points",
+      "owner": "敏捷教练",
+      "hidden": true
+    },
+    {
+      "id": "sprint_completed_points",
+      "label": "迭代完成点数",
+      "unit": "点",
+      "type": "atomic",
+      "layer": "delivery",
+      "fact": "sprint.completed",
+      "agg": "sum",
+      "measure": "completed_points",
+      "direction": "up",
+      "target": 200,
+      "precision": 0,
+      "description": "迭代结束时实际完成的故事点合计。",
+      "formula": "Σcompleted_points",
+      "owner": "敏捷教练",
+      "hidden": true
+    },
+    {
+      "id": "defect_total",
+      "label": "缺陷总数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "workitem.created",
+      "agg": "count",
+      "measure": null,
+      "filter": {
+        "class": "dev:Defect"
+      },
+      "direction": "down",
+      "target": 40,
+      "precision": 0,
+      "description": "统计周期内创建的缺陷工作项数量（由本体类归属推理得出，无需依赖 type 字段）。",
+      "formula": "count(workitem.created where subject ⊑ dev:Defect)",
+      "owner": "质量保障"
+    },
+    {
+      "id": "defect_escaped",
+      "label": "逃逸缺陷数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "workitem.created",
+      "agg": "count",
+      "measure": null,
+      "filter": {
+        "all": [
+          {
+            "class": "dev:Defect"
+          },
+          {
+            "field": "escaped",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "direction": "down",
+      "target": 4,
+      "precision": 0,
+      "description": "上线后才被发现的缺陷数量。",
+      "formula": "count(workitem.created where subject ⊑ dev:Defect and escaped=true)",
+      "owner": "质量保障"
+    },
+    {
+      "id": "churn_lines",
+      "label": "返工行数",
+      "unit": "行",
+      "type": "atomic",
+      "layer": "quality",
+      "fact": "commit.pushed",
+      "agg": "sum",
+      "measure": "churn_lines",
+      "direction": "down",
+      "target": 12000,
+      "precision": 0,
+      "description": "提交后短期被回滚或删除的代码行数。",
+      "formula": "Σchurn_lines",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "lines_changed_total",
+      "label": "代码变更行数",
+      "unit": "行",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "commit.pushed",
+      "agg": "sum",
+      "measure": "lines_changed",
+      "direction": "up",
+      "target": 80000,
+      "precision": 0,
+      "description": "全部提交新增与删除行数之和。",
+      "formula": "Σ(lines_added + lines_deleted)",
+      "owner": "工程效能",
+      "hidden": true
+    },
+    {
+      "id": "wip_total",
+      "label": "在制品数量",
+      "unit": "项",
+      "type": "atomic",
+      "layer": "flow",
+      "fact": "workitem.created",
+      "agg": "count",
+      "measure": null,
+      "filter": {
+        "all": [
+          {
+            "class": "dev:WorkItem"
+          },
+          {
+            "field": "status",
+            "op": "eq",
+            "value": "in_progress"
+          }
+        ]
+      },
+      "direction": "down",
+      "target": 30,
+      "precision": 0,
+      "description": "统计周期内处于进行中状态的工作项数量（窗口内快照近似）。",
+      "formula": "count(workitem where status=in_progress)",
+      "owner": "敏捷教练",
+      "hidden": true
+    },
+    {
+      "id": "active_people",
+      "label": "活跃人数",
+      "unit": "人",
+      "type": "atomic",
+      "layer": "delivery",
+      "fact": "commit.pushed",
+      "agg": "distinct",
+      "measure": "author",
+      "direction": "up",
+      "target": 10,
+      "precision": 0,
+      "description": "统计周期内产生过提交的人数。",
+      "formula": "count(distinct commit.author)",
+      "owner": "研发管理部"
+    },
+    {
+      "id": "tech_debt_points",
+      "label": "技术债点数",
+      "unit": "点",
+      "type": "atomic",
+      "layer": "delivery",
+      "fact": "workitem.created",
+      "agg": "sum",
+      "measure": "story_points",
+      "filter": {
+        "class": "dev:TechDebt"
+      },
+      "direction": "down",
+      "target": 20,
+      "precision": 0,
+      "description": "统计周期内创建的技术债工作项故事点合计（按本体类 dev:TechDebt 推理）。",
+      "formula": "Σstory_points where subject ⊑ dev:TechDebt",
+      "owner": "架构组",
+      "hidden": true
+    },
+    {
+      "id": "total_story_points",
+      "label": "需求点数",
+      "unit": "点",
+      "type": "atomic",
+      "layer": "delivery",
+      "fact": "workitem.created",
+      "agg": "sum",
+      "measure": "story_points",
+      "filter": {
+        "class": "dev:WorkItem"
+      },
+      "direction": "up",
+      "target": 240,
+      "precision": 0,
+      "description": "统计周期内创建的全部工作项故事点。",
+      "formula": "Σstory_points where subject ⊑ dev:WorkItem",
+      "owner": "研发管理部",
+      "hidden": true
+    },
+    {
+      "id": "tech_debt_ratio",
+      "label": "技术债投入占比",
+      "unit": "%",
+      "type": "derived",
+      "layer": "delivery",
+      "expr": "tech_debt_points / total_story_points * 100",
+      "deps": [
+        "tech_debt_points",
+        "total_story_points"
+      ],
+      "direction": "up",
+      "target": 15,
+      "precision": 1,
+      "description": "技术债故事点占全部需求故事点的比例，用于评估长期健康度投入是否充足。",
+      "formula": "tech_debt_points / total_story_points × 100%",
+      "owner": "架构组",
+      "primary": true
+    },
+    {
+      "id": "dev_eff_index",
+      "label": "研发效能指数",
+      "unit": "分",
+      "type": "composite",
+      "layer": "delivery",
+      "deps": [
+        "lead_time_hours",
+        "deploy_frequency",
+        "change_failure_rate",
+        "mttr_minutes",
+        "sprint_completion_rate",
+        "cycle_time_hours"
+      ],
+      "scoring": {
+        "components": [
+          {
+            "dep": "lead_time_hours",
+            "weight": 0.2,
+            "goal": 48,
+            "scale": "lower_better"
+          },
+          {
+            "dep": "deploy_frequency",
+            "weight": 0.15,
+            "goal": 10,
+            "scale": "higher_better"
+          },
+          {
+            "dep": "change_failure_rate",
+            "weight": 0.2,
+            "goal": 15,
+            "scale": "lower_better"
+          },
+          {
+            "dep": "mttr_minutes",
+            "weight": 0.1,
+            "goal": 60,
+            "scale": "lower_better"
+          },
+          {
+            "dep": "sprint_completion_rate",
+            "weight": 0.15,
+            "goal": 90,
+            "scale": "higher_better"
+          },
+          {
+            "dep": "cycle_time_hours",
+            "weight": 0.2,
+            "goal": 72,
+            "scale": "lower_better"
+          }
+        ]
+      },
+      "direction": "up",
+      "target": 75,
+      "precision": 1,
+      "description": "DORA 四指标 + 迭代达成率的加权归一化综合得分。每个分量按『达标即满分』归一化（越低越好者取 goal/value），权重可在本体文件中调整。",
+      "formula": "Σ wᵢ · norm(metricᵢ, goalᵢ) × 100",
+      "owner": "研发管理部",
+      "indicator": true
+    },
+    {
+      "id": "cycle_time_hours",
+      "label": "需求交付周期",
+      "unit": "h",
+      "type": "pair",
+      "layer": "flow",
+      "startFact": "workitem.created",
+      "endFact": "workitem.closed",
+      "joinOn": "subject",
+      "measure": "cycle_hours",
+      "agg": "median",
+      "direction": "down",
+      "target": 72,
+      "precision": 1,
+      "description": "已关闭工作项从创建到关闭的中位耗时。该指标需要把两类事实按同一主体 join，由本体关系驱动，无法从单一事实表直接聚合。",
+      "formula": "median(workitem.closed.occurred_at - workitem.created.occurred_at)",
+      "owner": "敏捷教练",
+      "primary": true
+    },
+    {
+      "id": "delivered_items",
+      "label": "交付工作项数",
+      "unit": "项/周",
+      "type": "atomic",
+      "layer": "delivery",
+      "fact": "workitem.closed",
+      "agg": "count",
+      "measure": null,
+      "normalize": {
+        "per": "week"
+      },
+      "direction": "up",
+      "target": 25,
+      "precision": 1,
+      "description": "每周关闭的工作项数量，反映需求消化速度。",
+      "formula": "count(workitem.closed) / window_weeks",
+      "owner": "研发管理部",
+      "primary": true
+    }
+  ]
+}

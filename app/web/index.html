@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>研发效能指标体系 · RDE-Onto</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f8cff'/><circle cx='16' cy='16' r='6' fill='white' opacity='.9'/></svg>">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">RDE</div>
+      <div class="brand-text">
+        <strong>效能指标体系</strong>
+        <span>Ontology-Driven</span>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-12h8V3h-8v6z"/></svg>
+        效能总览
+      </button>
+      <button class="nav-item" data-view="metrics">
+        <svg viewBox="0 0 24 24"><path d="M4 19h16v2H4zM6 10h3v7H6zm4.5-5h3v12h-3zM15 13h3v4h-3z"/></svg>
+        指标字典
+      </button>
+      <button class="nav-item" data-view="lineage">
+        <svg viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.3 6.9 3.8L12 11.9 5.1 8.1 12 4.3z"/></svg>
+        指标血缘
+      </button>
+      <button class="nav-item" data-view="ontology">
+        <svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.6-.9 3-2.3 3.6L14 11h4a2 2 0 0 1 2 2v2.4A4 4 0 1 1 16 20c0-1.6.9-3 2.3-3.6L18 13h-5v3.4A4 4 0 1 1 9 20c0-1.6.9-3 2.3-3.6L11 13H6l.7 3.4A4 4 0 1 1 4 20v-2.4A2 2 0 0 1 6 11h4l.3-1.4A4 4 0 0 1 8 6a4 4 0 0 1 4-4z"/></svg>
+        本体模型
+      </button>
+      <button class="nav-item" data-view="data">
+        <svg viewBox="0 0 24 24"><path d="M12 3c4.4 0 8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3V6c0-1.7 3.6-3 8-3zm0 2C8.3 5 6 5.9 6 6.6S8.3 8.2 12 8.2 18 7.3 18 6.6 15.7 5 12 5z"/></svg>
+        数据接入
+      </button>
+      <button class="nav-item" data-view="insights">
+        <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2zM9 20h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1z"/></svg>
+        分析预测
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="onto-badge">
+        <span class="dot"></span>
+        <div>
+          <strong id="onto-name">本体加载中</strong>
+          <small id="onto-version">—</small>
+        </div>
+      </div>
+      <button class="ghost-btn" id="theme-toggle" title="切换主题">
+        <svg viewBox="0 0 24 24"><path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+        <span>切换主题</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title-block">
+        <h1 id="view-title">效能总览</h1>
+        <p id="view-sub">基于本体推理的研发提效度量</p>
+      </div>
+      <div class="toolbar">
+        <div class="seg" id="granularity">
+          <button data-g="week" class="active">周</button>
+          <button data-g="month">月</button>
+          <button data-g="day">日</button>
+        </div>
+        <select id="periods" title="统计窗口">
+          <option value="8">近 8 期</option>
+          <option value="12" selected>近 12 期</option>
+          <option value="26">近 26 期</option>
+        </select>
+        <select id="team-filter" title="团队筛选"><option value="">全部团队</option></select>
+        <button class="btn" id="export-report">
+          <svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zM5 18h14v2H5z"/></svg>
+          导出报告
+        </button>
+      </div>
+    </header>
+
+    <section class="view" id="view-dashboard">
+      <div class="hero" id="hero"></div>
+      <div class="grid kpi-grid" id="kpi-grid"></div>
+      <div class="grid two-col">
+        <div class="card">
+          <div class="card-head">
+            <h2>核心指标趋势</h2>
+            <div class="chip-row" id="trend-chips"></div>
+          </div>
+          <div id="trend-chart" class="chart-lg"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>团队效能对比</h2><span class="hint">研发效能指数</span></div>
+          <div id="team-bars"></div>
+        </div>
+      </div>
+      <div class="grid two-col">
+        <div class="card">
+          <div class="card-head"><h2>自动洞察</h2><span class="hint">本体驱动规则</span></div>
+          <div id="insights-list" class="insight-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>指标达标矩阵</h2><span class="hint">目标 vs 实际</span></div>
+          <div id="matrix" class="matrix"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-metrics">
+      <div class="grid two-col wide-left">
+        <div class="card">
+          <div class="card-head"><h2>指标清单</h2>
+            <input class="search" id="metric-search" placeholder="搜索指标名称 / 负责人 / 口径">
+          </div>
+          <div id="metric-table" class="metric-table"></div>
+        </div>
+        <div class="card sticky" id="metric-detail"><div class="empty">选择左侧指标查看详情</div></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-lineage">
+      <div class="card">
+        <div class="card-head">
+          <h2>指标血缘图</h2>
+          <div class="chip-row">
+            <select id="lineage-root"></select>
+            <span class="hint">箭头方向：依赖 → 派生</span>
+          </div>
+        </div>
+        <div id="lineage-canvas" class="lineage-canvas"></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-ontology">
+      <div class="grid stats-row" id="onto-stats"></div>
+      <div class="grid two-col">
+        <div class="card">
+          <div class="card-head"><h2>类层次结构</h2><span class="hint">点击查看定义</span></div>
+          <div id="class-tree" class="tree"></div>
+        </div>
+        <div class="card" id="onto-detail"><div class="empty">选择类或关系查看定义</div></div>
+      </div>
+      <div class="grid two-col">
+        <div class="card">
+          <div class="card-head"><h2>关系定义</h2><span class="hint">含传递性与逆关系</span></div>
+          <div id="relation-list" class="rel-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>事实类型</h2><span class="hint">指标的事实来源</span></div>
+          <div id="facttype-list" class="fact-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-data">
+      <div class="grid stats-row" id="data-stats"></div>
+      <div class="grid two-col">
+        <div class="card">
+          <div class="card-head"><h2>CSV 导入</h2><span class="hint">按本体校验后入库</span></div>
+          <div class="upload-zone" id="upload-zone">
+            <p><strong>拖拽 CSV 到此处</strong> 或 <span class="link">点击选择文件</span></p>
+            <small>支持长表格式与模板格式，导入前自动校验主体类与时间</small>
+            <input type="file" id="file-input" accept=".csv" hidden>
+          </div>
+          <div class="row">
+            <select id="template-select"></select>
+            <button class="btn ghost" id="download-template">下载模板</button>
+          </div>
+          <div id="import-result"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>数据质量</h2><span class="hint" id="quality-score"></span></div>
+          <div id="quality-body"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>事实浏览器</h2>
+          <div class="chip-row">
+            <select id="fact-type-filter"><option value="">全部事实类型</option></select>
+            <button class="btn ghost" id="reseed">重建演示数据</button>
+          </div>
+        </div>
+        <div id="fact-table" class="fact-table"></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-insights">
+      <div class="grid two-col">
+        <div class="card">
+          <div class="card-head"><h2>交付预测（蒙特卡洛）</h2><span class="hint">基于历史周期吞吐</span></div>
+          <div class="row">
+            <label class="field">剩余工作量<input type="number" id="fc-backlog" min="1" step="1"></label>
+            <button class="btn" id="run-forecast">运行模拟</button>
+          </div>
+          <div id="forecast-body"><div class="empty">输入剩余工作量后运行模拟</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>改进建议</h2><span class="hint">按影响度排序</span></div>
+          <div id="advice-list" class="insight-list"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>指标相关性</h2><span class="hint">周期内指标之间的皮尔逊相关系数</span></div>
+        <div id="corr-heatmap" class="heatmap"></div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <span>RDE-Onto · 本体驱动 · 指标口径定义于 <code>ontology/ontology.json</code></span>
+      <span id="foot-meta"></span>
+    </footer>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/js/charts.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
