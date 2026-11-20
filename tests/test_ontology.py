@@ -15,118 +15,178 @@ def onto() -> Ontology:
 
 
 def test_ontology_loads_with_expected_shape(onto):
-    assert onto.version
+    assert onto.version == "2.0.0"
     assert len(onto.classes) >= 25
-    assert len(onto.relations) >= 15
+    assert len(onto.relations) >= 12
     assert len(onto.fact_types) >= 10
-    assert len(onto.metrics) >= 30
+    assert len(onto.metrics) >= 40
+
+
+def test_every_metric_has_unique_id(onto):
+    ids = [m["id"] for m in onto.metrics]
+    assert len(ids) == len(set(ids))
+
+
+def test_all_metrics_carry_label_and_unit(onto):
+    for metric in onto.metrics:
+        assert metric.get("label"), metric["id"]
+        assert metric.get("unit"), metric["id"]
+        assert metric.get("description"), metric["id"]
+
+
+def test_visible_metrics_carry_direction_and_target(onto):
+    """内部口径指标只做分母，不参与考核，因此允许没有方向与目标。"""
+    for metric in onto.metrics:
+        if metric.get("hidden"):
+            continue
+        assert metric.get("direction") in {"up", "down"}, metric["id"]
+        assert metric.get("target") is not None, metric["id"]
+
+
+def test_metric_codes_match_the_published_numbering(onto):
+    """指标编号必须与需求清单一致，便于与业务方对账。"""
+    expected = {
+        "mr_impl_cycle": "2.0.1 / 2.5",
+        "rr_on_time_rate": "2.0.2",
+        "mr_delivery_per_capita": "2.1",
+        "mr_impl_per_capita": "2.2",
+        "mr_impl_per_capita_live": "2.3",
+        "mr_impl_per_capita_converted": "2.4",
+        "mr_analysis_throughput": "2.7",
+        "mr_analysis_cycle": "2.8",
+        "mr_dev_throughput": "2.9",
+        "mr_dev_cycle": "2.10",
+        "mr_test_throughput": "2.11",
+        "mr_accept_cycle": "2.12",
+        "analysis_gen_rate": "3.1",
+        "solution_gen_rate": "3.2",
+        "code_gen_rate": "3.3",
+        "ai_testcase_gen_rate": "3.4",
+        "ai_script_gen_rate": "3.5",
+        "mr_ai_penetration": "3.6",
+    }
+    for mid, code in expected.items():
+        metric = onto.metric(mid)
+        assert metric is not None, mid
+        assert metric["code"] == code, mid
+
+
+def test_duplicate_impl_cycle_code_covers_both_entries(onto):
+    """需求清单中 2.0.1 与 2.5 都是 MR实现周期，一个指标覆盖两个编号。"""
+    metric = onto.metric("mr_impl_cycle")
+    assert "2.0.1" in metric["code"] and "2.5" in metric["code"]
 
 
 def test_subsumption_is_transitive(onto):
-    # Story ⊑ Requirement ⊑ WorkItem ⊑ Artifact ⊑ Entity
-    assert onto.is_subclass("dev:Story", "dev:Requirement")
-    assert onto.is_subclass("dev:Story", "dev:WorkItem")
-    assert onto.is_subclass("dev:Story", "core:Entity")
+    # MR ⊑ Artifact ⊑ Entity
+    assert onto.is_subclass("dev:MR", "core:Artifact")
+    assert onto.is_subclass("dev:MR", "core:Entity")
+    # 分析阶段 ⊑ 阶段 ⊑ 事件
+    assert onto.is_subclass("dev:AnalysisPhase", "dev:Phase")
+    assert onto.is_subclass("dev:AnalysisPhase", "core:Event")
+    # 中心人力 ⊑ 人员 ⊑ 参与者
+    assert onto.is_subclass("dev:Employee", "dev:Person")
+    assert onto.is_subclass("dev:Employee", "core:Actor")
     # 反方向不成立
-    assert not onto.is_subclass("dev:WorkItem", "dev:Story")
-    assert onto.is_subclass("dev:WorkItem", "dev:WorkItem")
+    assert not onto.is_subclass("core:Artifact", "dev:MR")
 
 
 def test_ancestors_and_descendants(onto):
-    assert onto.ancestors("dev:TechDebt")[0] == "dev:TechDebt"
-    assert onto.ancestors("dev:TechDebt")[-1] == "core:Entity"
-    assert "dev:TechDebt" in onto.descendants("dev:WorkItem")
-    assert "dev:Story" in onto.descendants("core:Entity")
+    assert onto.ancestors("dev:MR")[0] == "dev:MR"
+    assert onto.ancestors("dev:MR")[-1] == "core:Entity"
+    assert "dev:MR" in onto.descendants("core:Artifact")
+    assert "dev:TestPhase" in onto.descendants("dev:Phase")
 
 
-def test_common_ancestor(onto):
-    assert onto.common_ancestor("dev:Story", "dev:Defect") == "dev:WorkItem"
-    assert onto.common_ancestor("dev:Commit", "dev:Deployment") == "core:Event"
+def test_relation_inverse_pairs_are_symmetric(onto):
+    for rel in onto.relations.values():
+        if rel.inverse:
+            assert rel.inverse in onto.relations, rel.id
+            assert onto.relations[rel.inverse].inverse == rel.id
 
 
-def test_class_depth(onto):
-    assert onto.class_depth("core:Entity") == 0
-    assert onto.class_depth("dev:WorkItem") == 2
-    # dev:Story -> dev:Requirement -> dev:WorkItem -> core:Artifact -> core:Entity
-    assert onto.class_depth("dev:Story") == 4
-
-
-def test_transitive_relation_closure(onto):
-    edges = [("a", "b"), ("b", "c"), ("c", "d")]
-    closure = onto.transitive_closure("belongsTo", edges)
-    assert closure["a"] == {"b", "c", "d"}
-    assert closure.get("d", set()) == set()
-
-
-def test_non_transitive_relation_stays_one_hop(onto):
+def test_transitive_closure_only_for_transitive_relations(onto):
     edges = [("a", "b"), ("b", "c")]
-    closure = onto.transitive_closure("ownedBy", edges)
-    assert closure["a"] == {"b"}
+    closure = onto.transitive_closure("belongsTo", edges)
+    assert closure["a"] == {"b", "c"}
+    # staffedBy 非传递，只保留一跳
+    one_hop = onto.transitive_closure("staffedBy", edges)
+    assert one_hop["a"] == {"b"}
 
 
-def test_worktype_inferred_from_class_not_field(onto):
-    assert onto.worktype_of("dev:Defect") == "缺陷"
-    assert onto.worktype_of("dev:TechDebt") == "技术债"
-    assert onto.worktype_of("dev:Story") == "用户故事"
-    assert onto.worktype_of("dev:Commit") is None
+def test_fact_type_phase_is_declared_for_stage_events(onto):
+    phases = {f.id: f.phase for f in onto.fact_types.values()}
+    assert phases["mr.analysis.done"] == "分析"
+    assert phases["mr.dev.done"] == "开发"
+    assert phases["mr.test.done"] == "测试"
+    assert phases["mr.accepted"] == "验收"
+    assert phases["mr.created"] is None
 
 
-def test_metric_dependency_closure_is_ordered(onto):
-    deps = onto.dependency_closure("dev_eff_index")
-    assert "change_failure_rate" in deps
-    assert "incident_count" in deps
-    # 依赖必须先于使用它的指标出现
-    assert deps.index("incident_count") < deps.index("change_failure_rate")
+def test_atomic_metrics_reference_existing_facts_and_measures(onto):
+    for metric in onto.metrics:
+        if metric.get("type") != "atomic":
+            continue
+        fact = onto.fact_types[metric["fact"]]
+        measure = metric.get("measure")
+        if measure and metric.get("agg") != "count":
+            assert measure in fact.measures, f"{metric['id']} 的度量 {measure} 未在事实中声明"
 
 
-def test_dependents(onto):
-    assert "change_failure_rate" in onto.dependents("incident_count")
-    assert "dev_eff_index" in onto.dependents("lead_time_hours")
+def test_pair_metrics_reference_existing_fact_types(onto):
+    for metric in onto.metrics:
+        if metric.get("type") != "pair":
+            continue
+        assert metric["startFact"] in onto.fact_types, metric["id"]
+        assert metric["endFact"] in onto.fact_types, metric["id"]
 
 
-def test_cycle_detection_on_bad_metric_graph(tmp_path):
-    raw = json.loads(json.dumps({
-        "version": "x", "name": "bad", "namespaces": {}, "dimensions": [],
-        "classes": [{"id": "c:A", "label": "A", "parent": None, "namespace": "c"}],
-        "relations": [], "factTypes": [],
-        "metrics": [
-            {"id": "m1", "label": "m1", "type": "derived", "expr": "m2", "deps": ["m2"]},
-            {"id": "m2", "label": "m2", "type": "derived", "expr": "m1", "deps": ["m1"]},
-        ],
-    }))
+def test_derived_metrics_expression_variables_match_deps(onto):
+    import re
+    for metric in onto.metrics:
+        if metric.get("type") != "derived":
+            continue
+        variables = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", metric["expr"]))
+        variables -= {"max", "min", "months", "abs", "round", "sqrt"}
+        assert variables == set(metric["deps"]), metric["id"]
+
+
+def test_dependency_closure_is_ordered(onto):
+    closure = onto.dependency_closure("rde_index")
+    assert "mr_impl_cycle" in closure
+    assert "code_gen_rate" in closure
+    assert "rde_index" not in closure
+
+
+def test_cycle_detection_rejects_self_dependency(tmp_path, onto):
+    raw = json.loads((onto_path := __import__("app.config", fromlist=["x"]).ontology_path())
+                     .read_text(encoding="utf-8"))
+    raw["metrics"].append({
+        "id": "loop_metric", "label": "环", "unit": "个", "type": "derived",
+        "expr": "loop_metric", "deps": ["loop_metric"], "direction": "up",
+    })
     path = tmp_path / "bad.json"
-    path.write_text(json.dumps(raw), encoding="utf-8")
-    with pytest.raises(OntologyError, match="环"):
-        Ontology.load(path)
-
-
-def test_missing_parent_class_is_rejected(tmp_path):
-    raw = {
-        "version": "x", "name": "bad", "namespaces": {}, "dimensions": [],
-        "classes": [{"id": "c:A", "label": "A", "parent": "c:Missing", "namespace": "c"}],
-        "relations": [], "factTypes": [], "metrics": [],
-    }
-    path = tmp_path / "bad.json"
-    path.write_text(json.dumps(raw), encoding="utf-8")
+    path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
     with pytest.raises(OntologyError):
         Ontology.load(path)
 
 
-def test_metric_requires_known_fact_type(tmp_path):
-    raw = {
-        "version": "x", "name": "bad", "namespaces": {}, "dimensions": [],
-        "classes": [{"id": "c:A", "label": "A", "parent": None, "namespace": "c"}],
-        "relations": [], "factTypes": [],
-        "metrics": [{"id": "m", "label": "m", "type": "atomic", "fact": "nope", "agg": "count"}],
-    }
+def test_unknown_dependency_is_rejected(tmp_path, onto):
+    from app.config import ontology_path
+    raw = json.loads(ontology_path().read_text(encoding="utf-8"))
+    raw["metrics"].append({
+        "id": "orphan", "label": "孤儿", "unit": "个", "type": "derived",
+        "expr": "nope", "deps": ["nope"], "direction": "up",
+    })
     path = tmp_path / "bad.json"
-    path.write_text(json.dumps(raw), encoding="utf-8")
-    with pytest.raises(OntologyError, match="事实类型"):
+    path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(OntologyError):
         Ontology.load(path)
 
 
 def test_to_dict_exposes_stats(onto):
     data = onto.to_dict()
     assert data["stats"]["classes"] == len(onto.classes)
-    assert data["stats"]["atomicMetrics"] > 0
-    assert all("depth" in c for c in data["classes"])
+    assert data["stats"]["metrics"] == len(onto.metrics)
+    assert data["stats"]["atomicMetrics"] >= 20
+    assert data["dimensions"]

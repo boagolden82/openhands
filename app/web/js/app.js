@@ -4,12 +4,13 @@
     view: 'dashboard',
     granularity: 'week',
     periods: 12,
-    team: '',
+    group: '',
     overview: null,
+    compare: null,
     ontology: null,
     metrics: [],
     activeMetric: null,
-    trendMetric: 'lead_time_hours',
+    trendMetric: 'mr_impl_cycle',
     lineageRoot: null,
     factType: '',
   };
@@ -63,7 +64,7 @@
   /* ================= 总览 ================= */
   async function renderDashboard() {
     const params = new URLSearchParams({ granularity: state.granularity, periods: state.periods });
-    if (state.team) params.set('team', state.team);
+    if (state.group) params.set('projectGroup', state.group);
     const data = await api('/api/overview?' + params);
     state.overview = data;
 
@@ -119,8 +120,8 @@
     });
 
     const chips = $('#trend-chips');
-    const preferred = ['lead_time_hours', 'deploy_frequency', 'change_failure_rate', 'mttr_minutes',
-      'cycle_time_hours', 'ci_success_rate', 'throughput_points', 'sprint_completion_rate'];
+    const preferred = ['mr_impl_cycle', 'mr_analysis_cycle', 'mr_dev_cycle', 'mr_accept_cycle',
+      'rr_on_time_rate', 'mr_impl_per_capita', 'code_gen_rate', 'mr_ai_penetration'];
     const available = preferred.filter(id => data.metrics[id]);
     if (!available.includes(state.trendMetric)) state.trendMetric = available[0];
     chips.innerHTML = available.map(id =>
@@ -141,7 +142,7 @@
       });
     }
 
-    Charts.bars($('#team-bars'), data.teams.map(t => ({ member: t.member, value: t.value })));
+    Charts.bars($('#group-bars'), data.groups.map(t => ({ member: t.member, value: t.value })));
 
     $('#insights-list').innerHTML = data.insights.length
       ? data.insights.map(i => `<div class="insight ${i.level}"><strong>${esc(i.title)}</strong><span>${esc(i.detail)}</span></div>`).join('')
@@ -158,7 +159,32 @@
       </div>`;
     }).join('') || '<div class="empty">无可用目标</div>';
 
+    renderCompare(data.compare);
+
     $('#foot-meta').textContent = `窗口 ${data.window.start} ~ ${data.window.end} · 事实 ${data.counts.facts} 条 · 实体 ${data.counts.entities} 个`;
+  }
+
+  /* ================= 同比对比 ================= */
+  function renderCompare(cmp) {
+    const box = $('#compare-body');
+    if (!box) return;
+    if (!cmp || !cmp.items.length) { box.innerHTML = '<div class="empty">无同比数据</div>'; return; }
+    $('#compare-range').textContent =
+      `${cmp.base.start} ~ ${cmp.base.end}  →  ${cmp.current.start} ~ ${cmp.current.end}`;
+    const rows = cmp.items.filter(i => i.layer !== 'base');
+    box.innerHTML = `<table><thead><tr>
+      <th>编号</th><th>指标</th><th class="num">基期</th><th class="num">当期</th><th class="num">变化</th></tr></thead>
+      <tbody>${rows.map(i => {
+        const better = i.change === null ? '' : ((i.change > 0) === (i.direction === 'up') ? 'good' : 'bad');
+        const arrow = i.change === null ? '' : (i.change > 0 ? '▲' : i.change < 0 ? '▼' : '—');
+        return `<tr>
+          <td class="mono">${esc(i.code || '—')}</td>
+          <td>${esc(i.label)}</td>
+          <td class="num">${i.base ?? '—'}<span class="unit">${esc(i.unit)}</span></td>
+          <td class="num">${i.current ?? '—'}<span class="unit">${esc(i.unit)}</span></td>
+          <td class="num delta ${better}">${i.change === null ? '—' : `${arrow} ${Math.abs(i.change).toFixed(1)}%`}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
   }
 
   /* ================= 指标字典 ================= */
@@ -178,7 +204,7 @@
     $('#metric-table').innerHTML = rows.map(m => {
       const v = state.metricValues?.[m.id];
       return `<div class="mt-row ${state.activeMetric === m.id ? 'active' : ''}" data-id="${m.id}">
-        <div class="mt-name"><strong>${esc(m.label)}${m.indicator ? ' ★' : ''}</strong>
+        <div class="mt-name"><strong>${m.code ? `<span class="mono code">${esc(m.code)}</span> ` : ''}${esc(m.label)}${m.indicator ? ' ★' : ''}</strong>
           <small>${esc(m.id)}</small></div>
         <div class="mt-val">${v?.value ?? '—'}<span>${esc(m.unit)}</span></div>
         <div class="type-tag ${m.type}">${({ atomic: '原子', derived: '派生', composite: '复合', pair: '配对' })[m.type] || m.type}${m.hidden ? ' · 内部' : ''}</div>
@@ -206,13 +232,13 @@
     const def = m.definition || {};
     const bd = m.breakdown || {};
     const bdBlocks = Object.entries(bd).map(([dim, items]) => `
-      <div class="section-label">${({ team: '按团队', repo: '按代码库', worktype: '按工作类型' })[dim] || dim}</div>
+      <div class="section-label">${({ projectGroup: '按项目组', project: '按研发项目', phase: '按阶段' })[dim] || dim}</div>
       <div class="bd-list" data-bd="${dim}"></div>`).join('');
 
     box.innerHTML = `
       <div class="detail-head">
         <div>
-          <h2>${esc(m.label)}</h2>
+          <h2>${m.code ? `<span class="mono code">${esc(m.code)}</span> ` : ''}${esc(m.label)}</h2>
           <small style="color:var(--muted);font-family:var(--mono);font-size:11px">${esc(m.id)}</small>
         </div>
         ${statusPill(m)}
@@ -463,15 +489,24 @@
     const advice = [];
     const off = overview.kpis.filter(k => k.status === 'off');
     const templates = {
-      lead_time_hours: '缩短前置时间：拆分大需求、减少评审排队，优先处理在制品最久的工作项。',
-      cycle_time_hours: '压缩需求周期：明确验收标准，减少返工与跨团队等待。',
-      change_failure_rate: '降低变更失败：补齐自动化回归与灰度发布，缩小单次变更规模。',
-      mttr_minutes: '缩短恢复时间：完善告警分级与值班手册，预置回滚脚本。',
-      defect_escape_rate: '降低逃逸缺陷：把缺陷高频模块纳入自动化用例，强化发布前门禁。',
-      sprint_completion_rate: '提升迭代达成率：控制承诺范围，按历史速率预留缓冲。',
-      review_coverage: '提高评审覆盖：设置必须评审的合并规则，避免直接推送主干。',
-      wip_per_person: '降低在制品：限制并行任务数，先完成再开始。',
-      tech_debt_ratio: '增加技术债投入：把技术债纳入迭代承诺，避免长期欠账。',
+      mr_impl_cycle: '压缩 MR 实现周期：拆分大 MR、并行推进分析与方案评审，减少阶段间等待。',
+      mr_analysis_cycle: '缩短分析周期：需求模板化，把方案评审前移到分析阶段一次性完成。',
+      mr_dev_cycle: '缩短开发周期：控制单 MR 变更规模，用 AI 生成骨架代码后聚焦核心逻辑。',
+      mr_accept_cycle: '缩短验收周期：明确验收标准与责任人，验收环境预置、数据提前准备。',
+      rr_on_time_rate: '提升 RR 按期达成：按月滚动校准计划，把跨项目依赖纳入排期前置确认。',
+      mr_impl_per_capita: '提升人均实现数：减少无效返工，把重复性工作交给 AI 辅助生成。',
+      mr_impl_per_capita_converted: '核对折算人力口径：确认外包折算系数与在册人力的统计时点一致。',
+      mr_delivery_per_capita: '提升人均交付数：压缩验收等待，避免已实现 MR 长期滞留未交付。',
+      mr_analysis_throughput: '提升分析吞吐：沉淀需求分析模板库，用 AI 生成初稿后人工收敛。',
+      mr_dev_throughput: '提升开发吞吐：拆分长尾 MR，优先清理在开发阶段停留过久的条目。',
+      mr_test_throughput: '提升测试吞吐：自动化回归前置，减少手工验证排队。',
+      analysis_gen_rate: '提高分析生成率：把需求分析纳入 AI 工具链默认流程，而非可选项。',
+      solution_gen_rate: '提高方案生成率：基于历史方案库做检索增强生成，降低起步成本。',
+      code_gen_rate: '提高代码生成率：在 IDE 中默认开启补全，并把样板代码交给 AI 生成。',
+      ai_testcase_gen_rate: '提高用例生成率：从接口定义与需求描述自动派生用例草稿。',
+      ai_script_gen_rate: '提高脚本生成率：录制回放转脚本，把稳定用例沉淀为自动化资产。',
+      mr_ai_penetration: '扩大 MR 渗透率：针对低渗透项目组做工具落地与培训，明确使用场景清单。',
+      rde_index: '整体提效：优先改善达成率最低的分项，单点突破后再拉动综合指数。',
     };
     off.forEach(k => advice.push({
       level: k.attainment !== null && k.attainment < 0.7 ? 'critical' : 'warning',
@@ -485,11 +520,11 @@
       ? advice.slice(0, 8).map(a => `<div class="insight ${a.level}"><strong>${esc(a.title)}</strong><span>${esc(a.detail)}</span></div>`).join('')
       : '<div class="empty">暂无需要改进的项</div>';
 
-    $('#fc-backlog').value = Math.round((overview.metrics.delivered_items?.value || 12) * 4);
+    $('#fc-backlog').value = Math.round((overview.metrics.mr_dev_done_count?.value || 60) * 2);
 
-    const ids = ['lead_time_hours', 'deploy_frequency', 'change_failure_rate', 'mttr_minutes',
-      'cycle_time_hours', 'ci_success_rate', 'throughput_points', 'sprint_completion_rate',
-      'defect_escape_rate', 'wip_per_person'];
+    const ids = ['mr_impl_cycle', 'mr_analysis_cycle', 'mr_dev_cycle', 'mr_accept_cycle',
+      'rr_on_time_rate', 'mr_impl_per_capita', 'mr_delivery_per_capita',
+      'code_gen_rate', 'mr_ai_penetration', 'analysis_gen_rate'];
     const seriesMap = ids.map(id => ({ id, m: overview.metrics[id] })).filter(x => x.m && x.m.series.length > 2);
     const labels = seriesMap.map(x => x.m.label);
     const matrix = seriesMap.map(a => seriesMap.map(b => pearson(
@@ -517,7 +552,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          metric: 'delivered_items',
+          metric: 'mr_dev_done_count',
           remaining: Number($('#fc-backlog').value) || null,
           periods: state.periods,
           simulations: 3000,
@@ -526,8 +561,8 @@
       const max = Math.max(...result.histogram.map(h => h.count), 1);
       body.innerHTML = `
         <div class="kv" style="margin-bottom:14px">
-          <dt>剩余工作量</dt><dd><strong>${result.backlog}</strong> 项</dd>
-          <dt>历史均值</dt><dd>${result.mean} 项/周（${result.samples} 个样本）</dd>
+          <dt>剩余工作量</dt><dd><strong>${result.backlog}</strong> 个 MR</dd>
+          <dt>历史均值</dt><dd>${result.mean} 个/周（${result.samples} 个样本）</dd>
           <dt>P50 完成</dt><dd><strong style="color:var(--ok)">${result.p50} 周</strong></dd>
           <dt>P85 完成</dt><dd><strong style="color:var(--warn)">${result.p85} 周</strong></dd>
           <dt>P95 完成</dt><dd><strong style="color:var(--bad)">${result.p95} 周</strong></dd>
@@ -594,8 +629,8 @@
       switchView(state.view);
     });
 
-    $('#team-filter').addEventListener('change', e => {
-      state.team = e.target.value;
+    $('#group-filter').addEventListener('change', e => {
+      state.group = e.target.value;
       state.metrics = [];
       switchView(state.view);
     });
@@ -640,9 +675,9 @@
       $('#onto-version').textContent = `v${onto.version} · ${onto.stats.metrics} 个指标`;
       state.ontology = onto;
       const overview = await api('/api/overview?granularity=week&periods=12');
-      const teams = overview.coverage.dimensions.team || [];
-      $('#team-filter').innerHTML = '<option value="">全部团队</option>' +
-        teams.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      const groups = overview.coverage.dimensions.projectGroup || [];
+      $('#group-filter').innerHTML = '<option value="">全部项目组</option>' +
+        groups.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
       await switchView('dashboard');
     } catch (err) {
       toast('初始化失败：' + err.message, true);

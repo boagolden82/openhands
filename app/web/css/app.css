@@ -395,3 +395,27 @@ select:focus, .search:focus, input[type="number"]:focus { border-color: var(--ac
   .sidebar-foot { margin: 0; flex-direction: row; }
   .main { padding: 18px 16px 30px; }
 }
+
+/* ---- 指标编号与同比对比 ---- */
+.mono { font-family: var(--mono); }
+.code {
+  font-size: 10.5px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.compare-body { overflow-x: auto; max-height: 340px; }
+.compare-body table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.compare-body th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--panel-2);
+  color: var(--muted); font-weight: 600; font-size: 11px;
+  text-align: left; padding: 8px 12px; letter-spacing: .04em;
+}
+.compare-body th.num, .compare-body td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.compare-body td { padding: 7px 12px; border-bottom: 1px solid var(--line-soft); }
+.compare-body tbody tr:hover { background: var(--panel-2); }
+.compare-body .unit { color: var(--muted); font-size: 10.5px; margin-left: 3px; }

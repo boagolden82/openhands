@@ -75,7 +75,8 @@ def overview(req) -> dict[str, Any]:
         "metrics": result["metrics"],
         "coverage": result["coverage"],
         "insights": ctx.engine.insights(granularity=granularity, periods=periods),
-        "teams": ctx.engine.breakdown("dev_eff_index", "team", granularity, periods)["items"],
+        "groups": ctx.engine.breakdown("rde_index", "projectGroup", granularity, periods)["items"],
+        "compare": ctx.engine.compare(),
         "counts": ctx.store.counts(),
     }
 
@@ -86,13 +87,14 @@ def metrics_list(req) -> dict[str, Any]:
     return {
         "metrics": [
             {
-                "id": m["id"], "label": m["label"], "unit": m.get("unit", ""),
+                "id": m["id"], "code": m.get("code"), "label": m["label"],
+                "unit": m.get("unit", ""),
                 "type": m.get("type"), "layer": m.get("layer"),
                 "description": m.get("description", ""), "formula": m.get("formula", ""),
                 "owner": m.get("owner", ""), "target": m.get("target"),
                 "direction": m.get("direction"), "hidden": bool(m.get("hidden")),
                 "indicator": bool(m.get("indicator")), "deps": m.get("deps", []),
-                "fact": m.get("fact"),
+                "fact": m.get("fact"), "realtime": bool(m.get("realtime")),
             }
             for m in ctx.onto.metrics
         ],
@@ -115,12 +117,25 @@ def metric_detail(req, mid: str) -> dict[str, Any]:
     metric["deps"] = ctx.onto.dependency_closure(mid)
     metric["dependents"] = ctx.onto.dependents(mid)
     metric["breakdown"] = {}
-    for dim in ("team", "repo", "worktype"):
+    for dim in ("projectGroup", "project", "phase"):
         data = ctx.engine.breakdown(mid, dim, granularity, periods)
         if data["items"]:
             metric["breakdown"][dim] = data["items"]
     metric["window"] = result["window"]
     return metric
+
+
+@route("GET", r"/api/compare")
+def compare(req) -> dict[str, Any]:
+    ctx = context()
+    base = None
+    current = None
+    if req.query.get("baseStart") and req.query.get("baseEnd"):
+        base = (req.query["baseStart"], req.query["baseEnd"])
+    if req.query.get("currentStart") and req.query.get("currentEnd"):
+        current = (req.query["currentStart"], req.query["currentEnd"])
+    filters = {k: v for k, v in req.query.items() if k in DIM_KEYS}
+    return ctx.engine.compare(base=base, current=current, filters=filters)
 
 
 @route("GET", r"/api/ontology")
@@ -182,7 +197,7 @@ def import_logs(req) -> dict[str, Any]:
 def forecast(req) -> dict[str, Any]:
     payload = req.json()
     return context().engine.forecast(
-        payload.get("metric", "delivered_items"),
+        payload.get("metric", "mr_dev_done_count"),
         int(payload.get("periods", 12)),
         payload.get("remaining"),
         int(payload.get("simulations", 2000)),

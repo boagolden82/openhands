@@ -1,52 +1,47 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "name": "RDE-Onto 研发效能本体",
-  "description": "面向研发提效的领域本体：以『实体-关系-事实-指标』四层结构描述研发活动，指标由本体推理生成而非硬编码。",
+  "description": "面向 MR/RR 研发交付流程与 AI 辅助研发的过程度量本体。指标口径（分子、分母、目标、权重、归一化）全部定义在本文件中，修改口径只需改 JSON。",
   "namespaces": {
-    "core": "上层本体：实体、关系、事件、度量",
-    "dev": "研发领域本体：组织、需求、迭代、代码、缺陷、流水线、部署、事件",
-    "metric": "指标本体：原子指标、派生指标、维度、口径"
+    "core": "上层本体：实体、参与者、事件、产出物",
+    "dev": "研发领域本体：组织、项目、MR/RR、阶段、工作产物",
+    "metric": "指标本体：原子、派生、配对、复合"
   },
   "dimensions": [
     {
-      "id": "org",
-      "name": "组织",
-      "description": "团队/部门层级"
+      "id": "center",
+      "name": "研发中心",
+      "description": "组织顶层，用于年度总体口径"
     },
     {
-      "id": "team",
-      "name": "团队",
-      "description": "研发团队"
+      "id": "projectGroup",
+      "name": "项目组",
+      "description": "研发项目组，指标下钻的主要维度"
     },
     {
       "id": "project",
-      "name": "项目",
-      "description": "业务项目"
-    },
-    {
-      "id": "repo",
-      "name": "代码库",
-      "description": "代码仓库"
-    },
-    {
-      "id": "sprint",
-      "name": "迭代",
-      "description": "Scrum 迭代"
+      "name": "研发项目",
+      "description": "项目组下的具体研发项目"
     },
     {
       "id": "time",
       "name": "时间",
-      "description": "按周/月粒度的时间桶"
+      "description": "按周/月/年粒度的时间桶"
     },
     {
-      "id": "worktype",
-      "name": "工作类型",
-      "description": "需求/缺陷/技术债"
+      "id": "phase",
+      "name": "阶段",
+      "description": "分析/开发/测试/验收"
     },
     {
-      "id": "env",
-      "name": "环境",
-      "description": "开发/测试/预发/生产"
+      "id": "priority",
+      "name": "优先级",
+      "description": "MR 优先级"
+    },
+    {
+      "id": "source",
+      "name": "需求来源",
+      "description": "MR 提出渠道"
     }
   ],
   "classes": [
@@ -55,189 +50,196 @@
       "label": "实体",
       "parent": null,
       "namespace": "core",
-      "description": "一切可被度量的对象"
+      "description": "本体中一切可标识对象的根类"
     },
     {
       "id": "core:Actor",
       "label": "参与者",
       "parent": "core:Entity",
       "namespace": "core",
-      "description": "产生研发行为的人或系统"
+      "description": "能够承担职责或产生行为的实体"
     },
     {
       "id": "core:Event",
       "label": "事件",
       "parent": "core:Entity",
       "namespace": "core",
-      "description": "带时间戳的发生"
+      "description": "在时间轴上发生的一次事实"
     },
     {
       "id": "core:Artifact",
       "label": "产出物",
       "parent": "core:Entity",
       "namespace": "core",
-      "description": "研发过程中产生的制品"
+      "description": "被创造、流转、交付的对象"
     },
     {
       "id": "dev:Organization",
       "label": "组织",
       "parent": "core:Actor",
       "namespace": "dev",
-      "description": "公司/部门/团队的层级聚合"
+      "description": "承担研发职责的组织单元"
     },
     {
-      "id": "dev:Team",
-      "label": "团队",
+      "id": "dev:Center",
+      "label": "研发中心",
       "parent": "dev:Organization",
       "namespace": "dev",
-      "description": "承担交付的最小组织单元"
+      "description": "组织顶层，聚合全部项目组"
+    },
+    {
+      "id": "dev:ProjectGroup",
+      "label": "项目组",
+      "parent": "dev:Organization",
+      "namespace": "dev",
+      "description": "按业务域划分的研发项目组"
+    },
+    {
+      "id": "dev:Project",
+      "label": "研发项目",
+      "parent": "core:Artifact",
+      "namespace": "dev",
+      "description": "项目组内的具体研发项目"
     },
     {
       "id": "dev:Person",
       "label": "人员",
       "parent": "core:Actor",
       "namespace": "dev",
-      "description": "研发人员"
+      "description": "投入研发的人力"
     },
     {
-      "id": "dev:Project",
-      "label": "项目",
+      "id": "dev:Employee",
+      "label": "中心人力",
+      "parent": "dev:Person",
+      "namespace": "dev",
+      "description": "中心自有编制人力"
+    },
+    {
+      "id": "dev:Outsourced",
+      "label": "外包人力",
+      "parent": "dev:Person",
+      "namespace": "dev",
+      "description": "外包投入人力，按折算系数计入"
+    },
+    {
+      "id": "dev:MR",
+      "label": "MR",
       "parent": "core:Artifact",
       "namespace": "dev",
-      "description": "一组持续演进的软件产品"
+      "description": "需求最小交付单元，经历分析/开发/测试/验收四阶段"
     },
     {
-      "id": "dev:Repository",
-      "label": "代码库",
+      "id": "dev:RR",
+      "label": "RR",
       "parent": "core:Artifact",
       "namespace": "dev",
-      "description": "受版本控制的代码集合"
+      "description": "按研发项目归集的发布需求，用于按期达成考核"
     },
     {
-      "id": "dev:Sprint",
-      "label": "迭代",
+      "id": "dev:WorkProduct",
+      "label": "工作产物",
       "parent": "core:Artifact",
       "namespace": "dev",
-      "description": "固定周期的交付批次"
+      "description": "研发过程中产生的可计数产物"
     },
     {
-      "id": "dev:WorkItem",
-      "label": "工作项",
-      "parent": "core:Artifact",
+      "id": "dev:AnalysisDoc",
+      "label": "需求分析",
+      "parent": "dev:WorkProduct",
       "namespace": "dev",
-      "description": "可跟踪的工作单元"
+      "description": "需求分析产物"
     },
     {
-      "id": "dev:Requirement",
-      "label": "需求",
-      "parent": "dev:WorkItem",
+      "id": "dev:SolutionDoc",
+      "label": "需求方案",
+      "parent": "dev:WorkProduct",
       "namespace": "dev",
-      "description": "用户价值描述"
+      "description": "需求方案产物"
     },
     {
-      "id": "dev:Story",
-      "label": "用户故事",
-      "parent": "dev:Requirement",
+      "id": "dev:CodeChange",
+      "label": "代码变更",
+      "parent": "dev:WorkProduct",
       "namespace": "dev",
-      "description": "可在一个迭代内交付的需求切片"
+      "description": "代码行级变更"
     },
     {
-      "id": "dev:Defect",
-      "label": "缺陷",
-      "parent": "dev:WorkItem",
+      "id": "dev:TestCase",
+      "label": "测试用例",
+      "parent": "dev:WorkProduct",
       "namespace": "dev",
-      "description": "与预期不符的软件行为"
+      "description": "测试用例"
     },
     {
-      "id": "dev:Task",
-      "label": "任务",
-      "parent": "dev:WorkItem",
+      "id": "dev:TestScript",
+      "label": "测试脚本",
+      "parent": "dev:WorkProduct",
       "namespace": "dev",
-      "description": "技术性工作单元"
+      "description": "自动化测试脚本"
     },
     {
-      "id": "dev:TechDebt",
-      "label": "技术债",
-      "parent": "dev:Task",
-      "namespace": "dev",
-      "description": "为长期健康度偿还的技术工作"
-    },
-    {
-      "id": "dev:Commit",
-      "label": "提交",
+      "id": "dev:Phase",
+      "label": "阶段",
       "parent": "core:Event",
       "namespace": "dev",
-      "description": "代码变更事件"
+      "description": "MR 生命周期中的一个阶段完成事件"
     },
     {
-      "id": "dev:PullRequest",
-      "label": "合并请求",
-      "parent": "core:Event",
+      "id": "dev:AnalysisPhase",
+      "label": "分析阶段",
+      "parent": "dev:Phase",
       "namespace": "dev",
-      "description": "代码评审与合入事件"
+      "description": "需求分析阶段"
     },
     {
-      "id": "dev:Review",
-      "label": "代码评审",
-      "parent": "core:Event",
+      "id": "dev:DevPhase",
+      "label": "开发阶段",
+      "parent": "dev:Phase",
       "namespace": "dev",
-      "description": "对合并请求的评审行为"
+      "description": "编码实现阶段"
     },
     {
-      "id": "dev:PipelineRun",
-      "label": "流水线运行",
-      "parent": "core:Event",
+      "id": "dev:TestPhase",
+      "label": "测试阶段",
+      "parent": "dev:Phase",
       "namespace": "dev",
-      "description": "一次 CI/CD 执行"
+      "description": "测试验证阶段"
     },
     {
-      "id": "dev:Deployment",
-      "label": "部署",
-      "parent": "core:Event",
+      "id": "dev:AcceptPhase",
+      "label": "验收阶段",
+      "parent": "dev:Phase",
       "namespace": "dev",
-      "description": "制品进入环境的事件"
-    },
-    {
-      "id": "dev:Incident",
-      "label": "线上事件",
-      "parent": "core:Event",
-      "namespace": "dev",
-      "description": "影响生产可用性的事件"
-    },
-    {
-      "id": "dev:Release",
-      "label": "发布",
-      "parent": "core:Event",
-      "namespace": "dev",
-      "description": "面向用户的版本发布"
+      "description": "验收交付阶段"
     },
     {
       "id": "metric:Metric",
       "label": "指标",
       "parent": "core:Entity",
       "namespace": "metric",
-      "description": "对本体的量化观察"
+      "description": "可计算的度量定义"
     },
     {
       "id": "metric:AtomicMetric",
       "label": "原子指标",
       "parent": "metric:Metric",
       "namespace": "metric",
-      "description": "直接由事实聚合得到，不可再拆"
+      "description": "直接由单类事实聚合得到"
     },
     {
       "id": "metric:DerivedMetric",
       "label": "派生指标",
       "parent": "metric:Metric",
       "namespace": "metric",
-      "description": "由其他指标按公式计算"
+      "description": "由其他指标经表达式计算得到"
     },
     {
       "id": "metric:Indicator",
       "label": "北极星指标",
       "parent": "metric:DerivedMetric",
       "namespace": "metric",
-      "description": "用于衡量整体提效成效的顶层指标"
+      "description": "对外汇报的核心指标"
     }
   ],
   "relations": [
@@ -258,132 +260,84 @@
       "inverse": "belongsTo"
     },
     {
-      "id": "ownedBy",
-      "label": "归属团队",
-      "domain": "core:Artifact",
-      "range": "dev:Team",
-      "transitive": false,
-      "inverse": "owns"
-    },
-    {
-      "id": "owns",
-      "label": "负责",
-      "domain": "dev:Team",
-      "range": "core:Artifact",
-      "transitive": false,
-      "inverse": "ownedBy"
-    },
-    {
-      "id": "assignedTo",
-      "label": "指派给",
-      "domain": "dev:WorkItem",
+      "id": "staffedBy",
+      "label": "配置人力",
+      "domain": "dev:ProjectGroup",
       "range": "dev:Person",
       "transitive": false,
-      "inverse": "worksOn"
+      "inverse": "staffs"
     },
     {
-      "id": "worksOn",
-      "label": "参与",
+      "id": "staffs",
+      "label": "服务于",
       "domain": "dev:Person",
-      "range": "dev:WorkItem",
+      "range": "dev:ProjectGroup",
       "transitive": false,
-      "inverse": "assignedTo"
+      "inverse": "staffedBy"
     },
     {
-      "id": "inSprint",
-      "label": "属于迭代",
-      "domain": "dev:WorkItem",
-      "range": "dev:Sprint",
+      "id": "phasedBy",
+      "label": "经历阶段",
+      "domain": "dev:MR",
+      "range": "dev:Phase",
       "transitive": false,
-      "inverse": "containsItem"
+      "inverse": "phaseOf"
     },
     {
-      "id": "containsItem",
-      "label": "包含工作项",
-      "domain": "dev:Sprint",
-      "range": "dev:WorkItem",
+      "id": "phaseOf",
+      "label": "属于MR",
+      "domain": "dev:Phase",
+      "range": "dev:MR",
       "transitive": false,
-      "inverse": "inSprint"
+      "inverse": "phasedBy"
     },
     {
-      "id": "implements",
-      "label": "实现",
-      "domain": "dev:PullRequest",
-      "range": "dev:WorkItem",
+      "id": "produces",
+      "label": "产出",
+      "domain": "dev:MR",
+      "range": "dev:WorkProduct",
       "transitive": false,
-      "inverse": "implementedBy"
+      "inverse": "producedBy"
     },
     {
-      "id": "implementedBy",
-      "label": "由...实现",
-      "domain": "dev:WorkItem",
-      "range": "dev:PullRequest",
+      "id": "producedBy",
+      "label": "由...产出",
+      "domain": "dev:WorkProduct",
+      "range": "dev:MR",
       "transitive": false,
-      "inverse": "implements"
+      "inverse": "produces"
     },
     {
-      "id": "changes",
-      "label": "变更",
-      "domain": "dev:Commit",
-      "range": "dev:Repository",
+      "id": "covers",
+      "label": "覆盖MR",
+      "domain": "dev:RR",
+      "range": "dev:MR",
       "transitive": false,
-      "inverse": "changedBy"
+      "inverse": "coveredBy"
     },
     {
-      "id": "changedBy",
-      "label": "被变更",
-      "domain": "dev:Repository",
-      "range": "dev:Commit",
+      "id": "coveredBy",
+      "label": "被RR覆盖",
+      "domain": "dev:MR",
+      "range": "dev:RR",
       "transitive": false,
-      "inverse": "changes"
+      "inverse": "covers"
     },
     {
-      "id": "triggeredBy",
-      "label": "由...触发",
-      "domain": "dev:PipelineRun",
-      "range": "dev:Commit",
+      "id": "deliversTo",
+      "label": "交付至",
+      "domain": "dev:MR",
+      "range": "dev:Project",
       "transitive": false,
-      "inverse": "triggers"
+      "inverse": "deliveredFrom"
     },
     {
-      "id": "triggers",
-      "label": "触发",
-      "domain": "dev:Commit",
-      "range": "dev:PipelineRun",
+      "id": "deliveredFrom",
+      "label": "交付来源",
+      "domain": "dev:Project",
+      "range": "dev:MR",
       "transitive": false,
-      "inverse": "triggeredBy"
-    },
-    {
-      "id": "deploys",
-      "label": "部署制品",
-      "domain": "dev:Deployment",
-      "range": "dev:Repository",
-      "transitive": false,
-      "inverse": "deployedBy"
-    },
-    {
-      "id": "deployedBy",
-      "label": "被部署",
-      "domain": "dev:Repository",
-      "range": "dev:Deployment",
-      "transitive": false,
-      "inverse": "deploys"
-    },
-    {
-      "id": "causedBy",
-      "label": "由...引起",
-      "domain": "dev:Incident",
-      "range": "dev:Deployment",
-      "transitive": false,
-      "inverse": "caused"
-    },
-    {
-      "id": "caused",
-      "label": "导致",
-      "domain": "dev:Deployment",
-      "range": "dev:Incident",
-      "transitive": false,
-      "inverse": "causedBy"
+      "inverse": "deliversTo"
     },
     {
       "id": "dependsOn",
@@ -404,879 +358,845 @@
   ],
   "factTypes": [
     {
-      "id": "workitem.created",
-      "label": "工作项创建",
-      "subject": "dev:WorkItem",
+      "id": "mr.created",
+      "label": "MR提出",
+      "subject": "dev:MR",
       "timeField": "created_at",
-      "measures": [
-        "story_points"
-      ],
-      "fields": [
-        "status",
-        "title",
-        "priority",
-        "escaped",
-        "labels"
-      ],
-      "description": "工作项进入系统的时刻、规模与状态；类别由主体所属本体类推理得出"
-    },
-    {
-      "id": "workitem.closed",
-      "label": "工作项关闭",
-      "subject": "dev:WorkItem",
-      "timeField": "closed_at",
       "measures": [],
       "fields": [
-        "kind",
-        "status"
-      ],
-      "description": "工作项完成时刻"
-    },
-    {
-      "id": "commit.pushed",
-      "label": "代码提交",
-      "subject": "dev:Commit",
-      "timeField": "committed_at",
-      "measures": [
-        "lines_added",
-        "lines_deleted",
-        "lines_changed",
-        "churn_lines",
-        "files_changed"
-      ],
-      "fields": [
-        "author",
-        "repo",
-        "message"
-      ],
-      "description": "一次代码提交"
-    },
-    {
-      "id": "pr.opened",
-      "label": "合并请求创建",
-      "subject": "dev:PullRequest",
-      "timeField": "created_at",
-      "measures": [
-        "lines_changed"
-      ],
-      "fields": [
-        "author",
-        "repo",
-        "workitem"
-      ],
-      "description": "合并请求创建"
-    },
-    {
-      "id": "pr.merged",
-      "label": "合并请求合入",
-      "subject": "dev:PullRequest",
-      "timeField": "merged_at",
-      "measures": [
-        "lines_changed",
-        "open_hours"
-      ],
-      "fields": [
-        "author",
-        "repo",
-        "workitem"
-      ],
-      "description": "合并请求合入主干"
-    },
-    {
-      "id": "review.submitted",
-      "label": "评审提交",
-      "subject": "dev:Review",
-      "timeField": "submitted_at",
-      "measures": [
-        "comments"
-      ],
-      "fields": [
-        "reviewer",
-        "pr",
-        "verdict"
-      ],
-      "description": "代码评审意见"
-    },
-    {
-      "id": "pipeline.completed",
-      "label": "流水线完成",
-      "subject": "dev:PipelineRun",
-      "timeField": "finished_at",
-      "measures": [
-        "duration_sec"
-      ],
-      "fields": [
-        "status",
-        "repo",
-        "stage"
-      ],
-      "description": "一次 CI 执行结果"
-    },
-    {
-      "id": "deployment.finished",
-      "label": "部署完成",
-      "subject": "dev:Deployment",
-      "timeField": "finished_at",
-      "measures": [
-        "duration_sec",
-        "lead_time_hours"
-      ],
-      "fields": [
-        "env",
-        "repo",
-        "status",
-        "lead_time_hours"
-      ],
-      "description": "一次部署完成"
-    },
-    {
-      "id": "incident.resolved",
-      "label": "事件恢复",
-      "subject": "dev:Incident",
-      "timeField": "resolved_at",
-      "measures": [
-        "mttr_minutes"
-      ],
-      "fields": [
-        "severity",
-        "repo",
-        "team"
-      ],
-      "description": "线上事件恢复"
-    },
-    {
-      "id": "sprint.completed",
-      "label": "迭代结束",
-      "subject": "dev:Sprint",
-      "timeField": "ended_at",
-      "measures": [
-        "committed_points",
-        "completed_points"
-      ],
-      "fields": [
-        "team"
-      ],
-      "description": "迭代承诺与交付对比"
-    },
-    {
-      "id": "release.published",
-      "label": "版本发布",
-      "subject": "dev:Release",
-      "timeField": "released_at",
-      "measures": [],
-      "fields": [
-        "version",
         "project",
-        "repo"
+        "priority",
+        "source"
       ],
-      "description": "面向用户发布"
+      "phase": null,
+      "description": "MR 进入研发流程的起点，用于计算分析周期与渗透率分母"
+    },
+    {
+      "id": "mr.analysis.done",
+      "label": "分析完成",
+      "subject": "dev:MR",
+      "timeField": "occurred_at",
+      "measures": [
+        "ai_analysis",
+        "total_analysis",
+        "ai_solution",
+        "total_solution"
+      ],
+      "fields": [],
+      "phase": "分析",
+      "description": "需求分析与方案产出；ai_*/total_* 用于计算生成率"
+    },
+    {
+      "id": "mr.dev.done",
+      "label": "开发完成",
+      "subject": "dev:MR",
+      "timeField": "occurred_at",
+      "measures": [
+        "ai_lines",
+        "total_lines"
+      ],
+      "fields": [],
+      "phase": "开发",
+      "description": "编码实现完成（MR 实现口径）；ai_lines/total_lines 用于代码生成率"
+    },
+    {
+      "id": "mr.test.done",
+      "label": "测试完成",
+      "subject": "dev:MR",
+      "timeField": "occurred_at",
+      "measures": [
+        "ai_cases",
+        "total_cases",
+        "ai_scripts",
+        "total_scripts"
+      ],
+      "fields": [],
+      "phase": "测试",
+      "description": "测试验证完成；用例与脚本的 ai/total 用于 AI 生成率"
+    },
+    {
+      "id": "mr.accepted",
+      "label": "验收完成",
+      "subject": "dev:MR",
+      "timeField": "occurred_at",
+      "measures": [],
+      "fields": [],
+      "phase": "验收",
+      "description": "业务验收通过，验收周期终点"
+    },
+    {
+      "id": "mr.delivered",
+      "label": "MR交付",
+      "subject": "dev:MR",
+      "timeField": "occurred_at",
+      "measures": [],
+      "fields": [
+        "project"
+      ],
+      "phase": null,
+      "description": "MR 对外交付，交付人均数的分子"
+    },
+    {
+      "id": "mr.ai.touched",
+      "label": "MR使用AI",
+      "subject": "dev:MR",
+      "timeField": "occurred_at",
+      "measures": [],
+      "fields": [
+        "artifacts"
+      ],
+      "phase": null,
+      "description": "该 MR 在任一环节使用了 AI 辅助，用于计算 MR 渗透率"
+    },
+    {
+      "id": "rr.planned",
+      "label": "RR计划",
+      "subject": "dev:RR",
+      "timeField": "occurred_at",
+      "measures": [
+        "planned_count"
+      ],
+      "fields": [
+        "project"
+      ],
+      "phase": null,
+      "description": "RR 计划条目数，按期达成率的分母"
+    },
+    {
+      "id": "rr.delivered",
+      "label": "RR交付",
+      "subject": "dev:RR",
+      "timeField": "occurred_at",
+      "measures": [
+        "delivered_count",
+        "on_time_count",
+        "planned_count"
+      ],
+      "fields": [
+        "project"
+      ],
+      "phase": null,
+      "description": "RR 实际交付与按期数；planned_count 同步携带，确保达成率分子分母对齐同一批 RR"
+    },
+    {
+      "id": "headcount.snapshot",
+      "label": "人力快照",
+      "subject": "dev:ProjectGroup",
+      "timeField": "occurred_at",
+      "measures": [
+        "center_headcount",
+        "outsourced_headcount",
+        "outsourced_factor"
+      ],
+      "fields": [],
+      "phase": null,
+      "description": "项目组人力构成，人均类指标的分母；外包按折算系数计入"
     }
   ],
   "metrics": [
     {
-      "id": "lead_time_hours",
-      "label": "交付前置时间",
-      "unit": "h",
+      "id": "mr_created_count",
+      "label": "MR提出数",
+      "unit": "个",
       "type": "atomic",
-      "layer": "flow",
-      "fact": "deployment.finished",
-      "agg": "avg",
-      "measure": "lead_time_hours",
+      "layer": "base",
+      "fact": "mr.created",
+      "agg": "count",
+      "hidden": true,
+      "description": "窗口内新提出的 MR 数。作为分析、开发等阶段指标的分母基准。"
+    },
+    {
+      "id": "mr_analysis_done_count",
+      "label": "MR分析完成数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.analysis.done",
+      "agg": "count",
+      "hidden": true,
+      "description": "完成需求分析的 MR 数，是分析周期与人均分析吞吐率的分子。"
+    },
+    {
+      "id": "mr_dev_done_count",
+      "label": "MR开发完成数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.dev.done",
+      "agg": "count",
+      "hidden": true,
+      "description": "完成编码开发的 MR 数，是开发周期与人均开发吞吐率的分子。"
+    },
+    {
+      "id": "mr_test_done_count",
+      "label": "MR测试完成数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.test.done",
+      "agg": "count",
+      "hidden": true,
+      "description": "完成测试的 MR 数，是测试吞吐率的分子。"
+    },
+    {
+      "id": "mr_accepted_count",
+      "label": "MR验收完成数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.accepted",
+      "agg": "count",
+      "hidden": true,
+      "description": "通过验收的 MR 数，是验收周期与交付数的基础。"
+    },
+    {
+      "id": "mr_delivered_count",
+      "label": "MR交付数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.delivered",
+      "agg": "count",
+      "hidden": true,
+      "description": "实际交付上线的 MR 数，是人均交付数的分子。"
+    },
+    {
+      "id": "mr_ai_touched_count",
+      "label": "使用AI的MR数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.ai.touched",
+      "agg": "count",
+      "hidden": true,
+      "description": "研发过程中至少有一个环节使用 AI 辅助的 MR 数，是渗透率的分子。"
+    },
+    {
+      "id": "rr_planned_count",
+      "label": "RR计划数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "rr.planned",
+      "agg": "sum",
+      "measure": "planned_count",
+      "hidden": true,
+      "description": "按研发项目、按月计划的 RR 条目数。"
+    },
+    {
+      "id": "rr_on_time_count",
+      "label": "RR按期交付数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "rr.delivered",
+      "agg": "sum",
+      "measure": "on_time_count",
+      "hidden": true,
+      "description": "在计划日期前完成交付的 RR 数，是 RR 按期达成率的分子。"
+    },
+    {
+      "id": "rr_delivered_planned",
+      "label": "已交付RR计划数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "rr.delivered",
+      "agg": "sum",
+      "measure": "planned_count",
+      "hidden": true,
+      "description": "已交付 RR 对应的计划数。与按期数取同一批事实，保证达成率分子分母对齐。"
+    },
+    {
+      "id": "rr_delivered_count",
+      "label": "RR实际交付数",
+      "unit": "个",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "rr.delivered",
+      "agg": "sum",
+      "measure": "delivered_count",
+      "hidden": true,
+      "description": "实际交付的 RR 条目数。"
+    },
+    {
+      "id": "headcount_center",
+      "label": "中心人力",
+      "unit": "人",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "headcount.snapshot",
+      "agg": "snapshot",
+      "measure": "center_headcount",
+      "carry": 6,
+      "hidden": true,
+      "description": "中心在册研发人力，按月快照。取窗口内各主体最新值后求和。"
+    },
+    {
+      "id": "headcount_outsourced",
+      "label": "外包人力",
+      "unit": "人",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "headcount.snapshot",
+      "agg": "snapshot",
+      "measure": "outsourced_headcount",
+      "carry": 6,
+      "hidden": true,
+      "description": "外包研发人力，按月快照，与中心人力同期统计。"
+    },
+    {
+      "id": "outsourced_factor",
+      "label": "外包折算系数",
+      "unit": "系数",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "headcount.snapshot",
+      "agg": "snapshot",
+      "measure": "outsourced_factor",
+      "carry": 6,
+      "hidden": true,
+      "snapshotCombine": "avg",
+      "description": "外包人力折算系数，比率型度量，跨主体取平均而非求和。"
+    },
+    {
+      "id": "ai_analysis_count",
+      "label": "AI需求分析数",
+      "unit": "份",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.analysis.done",
+      "agg": "sum",
+      "measure": "ai_analysis",
+      "hidden": true,
+      "description": "AI 辅助产出的需求分析文档数。"
+    },
+    {
+      "id": "total_analysis_count",
+      "label": "需求分析总数",
+      "unit": "份",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.analysis.done",
+      "agg": "sum",
+      "measure": "total_analysis",
+      "hidden": true,
+      "description": "需求分析文档总数，含人工撰写。"
+    },
+    {
+      "id": "ai_solution_count",
+      "label": "AI需求方案数",
+      "unit": "份",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.analysis.done",
+      "agg": "sum",
+      "measure": "ai_solution",
+      "hidden": true,
+      "description": "AI 辅助产出的需求方案数。"
+    },
+    {
+      "id": "total_solution_count",
+      "label": "需求方案总数",
+      "unit": "份",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.analysis.done",
+      "agg": "sum",
+      "measure": "total_solution",
+      "hidden": true,
+      "description": "需求方案总数，含人工撰写。"
+    },
+    {
+      "id": "ai_lines",
+      "label": "AI生成代码行",
+      "unit": "行",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.dev.done",
+      "agg": "sum",
+      "measure": "ai_lines",
+      "hidden": true,
+      "description": "AI 生成的代码行数。"
+    },
+    {
+      "id": "total_lines",
+      "label": "代码变更总行",
+      "unit": "行",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.dev.done",
+      "agg": "sum",
+      "measure": "total_lines",
+      "hidden": true,
+      "description": "代码变更总行数，含人工编写。"
+    },
+    {
+      "id": "ai_cases",
+      "label": "AI生成用例数",
+      "unit": "条",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.test.done",
+      "agg": "sum",
+      "measure": "ai_cases",
+      "hidden": true,
+      "description": "AI 生成的测试用例数。"
+    },
+    {
+      "id": "total_cases",
+      "label": "用例总数",
+      "unit": "条",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.test.done",
+      "agg": "sum",
+      "measure": "total_cases",
+      "hidden": true,
+      "description": "测试用例总数，含人工编写。"
+    },
+    {
+      "id": "ai_scripts",
+      "label": "AI生成脚本数",
+      "unit": "条",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.test.done",
+      "agg": "sum",
+      "measure": "ai_scripts",
+      "hidden": true,
+      "description": "AI 生成的自动化脚本数。"
+    },
+    {
+      "id": "total_scripts",
+      "label": "脚本总数",
+      "unit": "条",
+      "type": "atomic",
+      "layer": "base",
+      "fact": "mr.test.done",
+      "agg": "sum",
+      "measure": "total_scripts",
+      "hidden": true,
+      "description": "自动化脚本总数，含人工编写。"
+    },
+    {
+      "id": "mr_impl_cycle",
+      "code": "2.0.1 / 2.5",
+      "label": "MR实现周期",
+      "unit": "h",
+      "type": "pair",
+      "layer": "detail",
+      "startFact": "mr.created",
+      "endFact": "mr.dev.done",
+      "agg": "median",
+      "direction": "down",
+      "target": 120,
+      "precision": 1,
+      "description": "MR 从提出到开发完成的中位时长；口径上等于分析周期与开发周期之和。",
+      "formula": "median(mr.dev.done - mr.created)",
+      "owner": "研发效能平台",
+      "primary": true
+    },
+    {
+      "id": "mr_analysis_cycle",
+      "code": "2.8",
+      "label": "MR分析周期",
+      "unit": "h",
+      "type": "pair",
+      "layer": "detail",
+      "startFact": "mr.created",
+      "endFact": "mr.analysis.done",
+      "agg": "median",
       "direction": "down",
       "target": 48,
       "precision": 1,
-      "description": "从需求进入开发到部署完成的中位时长，衡量端到端流动效率。",
-      "formula": "median(deployment.lead_time_hours)",
-      "owner": "研发效能平台",
-      "primary": true
+      "description": "MR 从提出到需求分析完成的中位时长。",
+      "formula": "median(mr.analysis.done - mr.created)",
+      "owner": "需求分析组"
     },
     {
-      "id": "deploy_frequency",
-      "label": "部署频率",
-      "unit": "次/周",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "deployment.finished",
-      "agg": "count",
-      "measure": null,
-      "direction": "up",
-      "target": 10,
-      "precision": 1,
-      "description": "统计周期内完成的部署次数，按周归一化。",
-      "formula": "count(deployment) / window_weeks",
-      "owner": "研发效能平台",
-      "normalize": {
-        "per": "week"
-      },
-      "primary": true
-    },
-    {
-      "id": "change_failure_rate",
-      "label": "变更失败率",
-      "unit": "%",
-      "type": "derived",
-      "layer": "quality",
-      "expr": "incident_count / deploy_count * 100",
-      "deps": [
-        "incident_count",
-        "deploy_count"
-      ],
-      "direction": "down",
-      "target": 15,
-      "precision": 1,
-      "description": "由部署引发的线上事件占全部部署的比例。",
-      "formula": "incidents / deployments × 100%",
-      "owner": "SRE",
-      "primary": true
-    },
-    {
-      "id": "mttr_minutes",
-      "label": "平均恢复时长",
-      "unit": "min",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "incident.resolved",
-      "agg": "avg",
-      "measure": "mttr_minutes",
-      "direction": "down",
-      "target": 60,
-      "precision": 0,
-      "description": "线上事件从发生到恢复的平均耗时。",
-      "formula": "avg(incident.mttr_minutes)",
-      "owner": "SRE",
-      "primary": true
-    },
-    {
-      "id": "pr_cycle_hours",
-      "label": "评审周期",
-      "unit": "h",
-      "type": "derived",
-      "layer": "flow",
-      "expr": "pr_open_hours_total / pr_merged_count",
-      "deps": [
-        "pr_open_hours_total",
-        "pr_merged_count"
-      ],
-      "direction": "down",
-      "target": 24,
-      "precision": 1,
-      "description": "合并请求从创建到合入的平均时长，衡量协作摩擦。",
-      "formula": "Σ(merged_at - created_at) / merged_count",
-      "owner": "工程效能",
-      "primary": true
-    },
-    {
-      "id": "ci_success_rate",
-      "label": "流水线成功率",
-      "unit": "%",
-      "type": "derived",
-      "layer": "quality",
-      "expr": "ci_success_count / ci_total_count * 100",
-      "deps": [
-        "ci_success_count",
-        "ci_total_count"
-      ],
-      "direction": "up",
-      "target": 95,
-      "precision": 1,
-      "description": "CI 流水线执行成功的比例，反映测试与构建的稳定性。",
-      "formula": "success_runs / total_runs × 100%",
-      "owner": "工程效能",
-      "primary": true
-    },
-    {
-      "id": "ci_duration_minutes",
-      "label": "流水线时长",
-      "unit": "min",
-      "type": "derived",
-      "layer": "flow",
-      "expr": "ci_duration_sec_total / ci_total_count / 60",
-      "deps": [
-        "ci_duration_sec_total",
-        "ci_total_count"
-      ],
-      "direction": "down",
-      "target": 15,
-      "precision": 1,
-      "description": "单次流水线平均执行时长，直接影响反馈速度。",
-      "formula": "Σduration / runs / 60",
-      "owner": "工程效能",
-      "primary": true
-    },
-    {
-      "id": "throughput_points",
-      "label": "交付吞吐",
-      "unit": "点/周",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "sprint.completed",
-      "agg": "sum",
-      "measure": "completed_points",
-      "direction": "up",
-      "target": 80,
-      "precision": 1,
-      "description": "每迭代完成的故事点，按周归一化后得到团队稳定交付速率（组织级口径）。",
-      "formula": "Σcompleted_points / window_weeks",
-      "owner": "敏捷教练",
-      "normalize": {
-        "per": "week"
-      },
-      "primary": true
-    },
-    {
-      "id": "sprint_completion_rate",
-      "label": "迭代达成率",
-      "unit": "%",
-      "type": "derived",
-      "layer": "delivery",
-      "expr": "sprint_completed_points / sprint_committed_points * 100",
-      "deps": [
-        "sprint_completed_points",
-        "sprint_committed_points"
-      ],
-      "direction": "up",
-      "target": 90,
-      "precision": 1,
-      "description": "迭代实际交付与承诺的比例，衡量计划可信度。",
-      "formula": "completed / committed × 100%",
-      "owner": "敏捷教练",
-      "primary": true
-    },
-    {
-      "id": "defect_escape_rate",
-      "label": "缺陷逃逸率",
-      "unit": "%",
-      "type": "derived",
-      "layer": "quality",
-      "expr": "defect_escaped / defect_total * 100",
-      "deps": [
-        "defect_escaped",
-        "defect_total"
-      ],
-      "direction": "down",
-      "target": 10,
-      "precision": 1,
-      "description": "上线后才被发现的缺陷占全部缺陷的比例。",
-      "formula": "escaped_defects / all_defects × 100%",
-      "owner": "质量保障",
-      "primary": true
-    },
-    {
-      "id": "code_churn_rate",
-      "label": "代码返工率",
-      "unit": "%",
-      "type": "derived",
-      "layer": "quality",
-      "expr": "churn_lines / lines_changed_total * 100",
-      "deps": [
-        "churn_lines",
-        "lines_changed_total"
-      ],
-      "direction": "down",
-      "target": 20,
-      "precision": 1,
-      "description": "提交后两周内被删除的行数占比，反映返工与需求不稳定。",
-      "formula": "churn_lines / changed_lines × 100%",
-      "owner": "工程效能",
-      "primary": true
-    },
-    {
-      "id": "review_coverage",
-      "label": "评审覆盖率",
-      "unit": "%",
-      "type": "derived",
-      "layer": "quality",
-      "expr": "pr_with_review_count / pr_merged_count * 100",
-      "deps": [
-        "pr_with_review_count",
-        "pr_merged_count"
-      ],
-      "direction": "up",
-      "target": 95,
-      "precision": 1,
-      "description": "合入前至少被一次评审的合并请求比例。",
-      "formula": "reviewed_prs / merged_prs × 100%",
-      "owner": "工程效能",
-      "primary": true
-    },
-    {
-      "id": "wip_per_person",
-      "label": "人均在制品",
-      "unit": "项",
-      "type": "derived",
-      "layer": "flow",
-      "expr": "wip_total / active_people",
-      "deps": [
-        "wip_total",
-        "active_people"
-      ],
-      "direction": "down",
-      "target": 3,
-      "precision": 2,
-      "description": "同时进行中的工作项数量除以活跃人数，衡量并行度与切换成本。",
-      "formula": "WIP / active_people",
-      "owner": "敏捷教练",
-      "primary": true
-    },
-    {
-      "id": "incident_count",
-      "label": "线上事件数",
-      "unit": "个",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "incident.resolved",
-      "agg": "count",
-      "measure": null,
-      "direction": "down",
-      "target": 3,
-      "precision": 0,
-      "description": "统计周期内发生的线上事件数量。",
-      "formula": "count(incident)",
-      "owner": "SRE",
-      "hidden": true
-    },
-    {
-      "id": "deploy_count",
-      "label": "部署次数",
-      "unit": "次",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "deployment.finished",
-      "agg": "count",
-      "measure": null,
-      "direction": "up",
-      "target": 40,
-      "precision": 0,
-      "description": "统计周期内完成的部署总次数。",
-      "formula": "count(deployment)",
-      "owner": "研发效能平台",
-      "hidden": true
-    },
-    {
-      "id": "pr_merged_count",
-      "label": "合入合并请求数",
-      "unit": "个",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "pr.merged",
-      "agg": "count",
-      "measure": null,
-      "direction": "up",
-      "target": 80,
-      "precision": 0,
-      "description": "统计周期内合入的合并请求数量。",
-      "formula": "count(pr.merged)",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "pr_open_hours_total",
-      "label": "合并请求滞留时长合计",
-      "unit": "h",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "pr.merged",
-      "agg": "sum",
-      "measure": "open_hours",
-      "direction": "down",
-      "target": 1800,
-      "precision": 0,
-      "description": "所有合入请求从创建到合入的时长之和，作为评审周期的分子。",
-      "formula": "Σ(merged_at - created_at)",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "pr_with_review_count",
-      "label": "有评审的合并请求数",
-      "unit": "个",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "review.submitted",
-      "agg": "distinct",
-      "measure": "pr",
-      "direction": "up",
-      "target": 76,
-      "precision": 0,
-      "description": "去重统计收到评审的合并请求。",
-      "formula": "count(distinct review.pr)",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "ci_total_count",
-      "label": "流水线运行次数",
-      "unit": "次",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "pipeline.completed",
-      "agg": "count",
-      "measure": null,
-      "direction": "up",
-      "target": 400,
-      "precision": 0,
-      "description": "统计周期内流水线执行总次数。",
-      "formula": "count(pipeline)",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "ci_success_count",
-      "label": "流水线成功次数",
-      "unit": "次",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "pipeline.completed",
-      "agg": "count",
-      "measure": null,
-      "filter": {
-        "field": "status",
-        "op": "eq",
-        "value": "success"
-      },
-      "direction": "up",
-      "target": 380,
-      "precision": 0,
-      "description": "status=success 的流水线运行次数。",
-      "formula": "count(pipeline where status=success)",
-      "owner": "工程效能"
-    },
-    {
-      "id": "ci_duration_sec_total",
-      "label": "流水线时长合计",
-      "unit": "s",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "pipeline.completed",
-      "agg": "sum",
-      "measure": "duration_sec",
-      "direction": "down",
-      "target": 360000,
-      "precision": 0,
-      "description": "所有流水线运行时长之和。",
-      "formula": "Σduration_sec",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "sprint_committed_points",
-      "label": "迭代承诺点数",
-      "unit": "点",
-      "type": "atomic",
-      "layer": "delivery",
-      "fact": "sprint.completed",
-      "agg": "sum",
-      "measure": "committed_points",
-      "direction": "up",
-      "target": 220,
-      "precision": 0,
-      "description": "迭代开始时团队承诺的故事点合计。",
-      "formula": "Σcommitted_points",
-      "owner": "敏捷教练",
-      "hidden": true
-    },
-    {
-      "id": "sprint_completed_points",
-      "label": "迭代完成点数",
-      "unit": "点",
-      "type": "atomic",
-      "layer": "delivery",
-      "fact": "sprint.completed",
-      "agg": "sum",
-      "measure": "completed_points",
-      "direction": "up",
-      "target": 200,
-      "precision": 0,
-      "description": "迭代结束时实际完成的故事点合计。",
-      "formula": "Σcompleted_points",
-      "owner": "敏捷教练",
-      "hidden": true
-    },
-    {
-      "id": "defect_total",
-      "label": "缺陷总数",
-      "unit": "个",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "workitem.created",
-      "agg": "count",
-      "measure": null,
-      "filter": {
-        "class": "dev:Defect"
-      },
-      "direction": "down",
-      "target": 40,
-      "precision": 0,
-      "description": "统计周期内创建的缺陷工作项数量（由本体类归属推理得出，无需依赖 type 字段）。",
-      "formula": "count(workitem.created where subject ⊑ dev:Defect)",
-      "owner": "质量保障"
-    },
-    {
-      "id": "defect_escaped",
-      "label": "逃逸缺陷数",
-      "unit": "个",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "workitem.created",
-      "agg": "count",
-      "measure": null,
-      "filter": {
-        "all": [
-          {
-            "class": "dev:Defect"
-          },
-          {
-            "field": "escaped",
-            "op": "eq",
-            "value": true
-          }
-        ]
-      },
-      "direction": "down",
-      "target": 4,
-      "precision": 0,
-      "description": "上线后才被发现的缺陷数量。",
-      "formula": "count(workitem.created where subject ⊑ dev:Defect and escaped=true)",
-      "owner": "质量保障"
-    },
-    {
-      "id": "churn_lines",
-      "label": "返工行数",
-      "unit": "行",
-      "type": "atomic",
-      "layer": "quality",
-      "fact": "commit.pushed",
-      "agg": "sum",
-      "measure": "churn_lines",
-      "direction": "down",
-      "target": 12000,
-      "precision": 0,
-      "description": "提交后短期被回滚或删除的代码行数。",
-      "formula": "Σchurn_lines",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "lines_changed_total",
-      "label": "代码变更行数",
-      "unit": "行",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "commit.pushed",
-      "agg": "sum",
-      "measure": "lines_changed",
-      "direction": "up",
-      "target": 80000,
-      "precision": 0,
-      "description": "全部提交新增与删除行数之和。",
-      "formula": "Σ(lines_added + lines_deleted)",
-      "owner": "工程效能",
-      "hidden": true
-    },
-    {
-      "id": "wip_total",
-      "label": "在制品数量",
-      "unit": "项",
-      "type": "atomic",
-      "layer": "flow",
-      "fact": "workitem.created",
-      "agg": "count",
-      "measure": null,
-      "filter": {
-        "all": [
-          {
-            "class": "dev:WorkItem"
-          },
-          {
-            "field": "status",
-            "op": "eq",
-            "value": "in_progress"
-          }
-        ]
-      },
-      "direction": "down",
-      "target": 30,
-      "precision": 0,
-      "description": "统计周期内处于进行中状态的工作项数量（窗口内快照近似）。",
-      "formula": "count(workitem where status=in_progress)",
-      "owner": "敏捷教练",
-      "hidden": true
-    },
-    {
-      "id": "active_people",
-      "label": "活跃人数",
-      "unit": "人",
-      "type": "atomic",
-      "layer": "delivery",
-      "fact": "commit.pushed",
-      "agg": "distinct",
-      "measure": "author",
-      "direction": "up",
-      "target": 10,
-      "precision": 0,
-      "description": "统计周期内产生过提交的人数。",
-      "formula": "count(distinct commit.author)",
-      "owner": "研发管理部"
-    },
-    {
-      "id": "tech_debt_points",
-      "label": "技术债点数",
-      "unit": "点",
-      "type": "atomic",
-      "layer": "delivery",
-      "fact": "workitem.created",
-      "agg": "sum",
-      "measure": "story_points",
-      "filter": {
-        "class": "dev:TechDebt"
-      },
-      "direction": "down",
-      "target": 20,
-      "precision": 0,
-      "description": "统计周期内创建的技术债工作项故事点合计（按本体类 dev:TechDebt 推理）。",
-      "formula": "Σstory_points where subject ⊑ dev:TechDebt",
-      "owner": "架构组",
-      "hidden": true
-    },
-    {
-      "id": "total_story_points",
-      "label": "需求点数",
-      "unit": "点",
-      "type": "atomic",
-      "layer": "delivery",
-      "fact": "workitem.created",
-      "agg": "sum",
-      "measure": "story_points",
-      "filter": {
-        "class": "dev:WorkItem"
-      },
-      "direction": "up",
-      "target": 240,
-      "precision": 0,
-      "description": "统计周期内创建的全部工作项故事点。",
-      "formula": "Σstory_points where subject ⊑ dev:WorkItem",
-      "owner": "研发管理部",
-      "hidden": true
-    },
-    {
-      "id": "tech_debt_ratio",
-      "label": "技术债投入占比",
-      "unit": "%",
-      "type": "derived",
-      "layer": "delivery",
-      "expr": "tech_debt_points / total_story_points * 100",
-      "deps": [
-        "tech_debt_points",
-        "total_story_points"
-      ],
-      "direction": "up",
-      "target": 15,
-      "precision": 1,
-      "description": "技术债故事点占全部需求故事点的比例，用于评估长期健康度投入是否充足。",
-      "formula": "tech_debt_points / total_story_points × 100%",
-      "owner": "架构组",
-      "primary": true
-    },
-    {
-      "id": "dev_eff_index",
-      "label": "研发效能指数",
-      "unit": "分",
-      "type": "composite",
-      "layer": "delivery",
-      "deps": [
-        "lead_time_hours",
-        "deploy_frequency",
-        "change_failure_rate",
-        "mttr_minutes",
-        "sprint_completion_rate",
-        "cycle_time_hours"
-      ],
-      "scoring": {
-        "components": [
-          {
-            "dep": "lead_time_hours",
-            "weight": 0.2,
-            "goal": 48,
-            "scale": "lower_better"
-          },
-          {
-            "dep": "deploy_frequency",
-            "weight": 0.15,
-            "goal": 10,
-            "scale": "higher_better"
-          },
-          {
-            "dep": "change_failure_rate",
-            "weight": 0.2,
-            "goal": 15,
-            "scale": "lower_better"
-          },
-          {
-            "dep": "mttr_minutes",
-            "weight": 0.1,
-            "goal": 60,
-            "scale": "lower_better"
-          },
-          {
-            "dep": "sprint_completion_rate",
-            "weight": 0.15,
-            "goal": 90,
-            "scale": "higher_better"
-          },
-          {
-            "dep": "cycle_time_hours",
-            "weight": 0.2,
-            "goal": 72,
-            "scale": "lower_better"
-          }
-        ]
-      },
-      "direction": "up",
-      "target": 75,
-      "precision": 1,
-      "description": "DORA 四指标 + 迭代达成率的加权归一化综合得分。每个分量按『达标即满分』归一化（越低越好者取 goal/value），权重可在本体文件中调整。",
-      "formula": "Σ wᵢ · norm(metricᵢ, goalᵢ) × 100",
-      "owner": "研发管理部",
-      "indicator": true
-    },
-    {
-      "id": "cycle_time_hours",
-      "label": "需求交付周期",
+      "id": "mr_dev_cycle",
+      "code": "2.10",
+      "label": "MR开发周期",
       "unit": "h",
       "type": "pair",
-      "layer": "flow",
-      "startFact": "workitem.created",
-      "endFact": "workitem.closed",
-      "joinOn": "subject",
-      "measure": "cycle_hours",
+      "layer": "detail",
+      "startFact": "mr.analysis.done",
+      "endFact": "mr.dev.done",
       "agg": "median",
       "direction": "down",
       "target": 72,
       "precision": 1,
-      "description": "已关闭工作项从创建到关闭的中位耗时。该指标需要把两类事实按同一主体 join，由本体关系驱动，无法从单一事实表直接聚合。",
-      "formula": "median(workitem.closed.occurred_at - workitem.created.occurred_at)",
-      "owner": "敏捷教练",
+      "description": "MR 从分析完成到编码实现完成的中位时长。",
+      "formula": "median(mr.dev.done - mr.analysis.done)",
+      "owner": "开发组"
+    },
+    {
+      "id": "mr_accept_cycle",
+      "code": "2.12",
+      "label": "MR验收周期",
+      "unit": "h",
+      "type": "pair",
+      "layer": "detail",
+      "startFact": "mr.dev.done",
+      "endFact": "mr.accepted",
+      "agg": "median",
+      "direction": "down",
+      "target": 24,
+      "precision": 1,
+      "description": "MR 从开发完成到验收通过的中位时长。",
+      "formula": "median(mr.accepted - mr.dev.done)",
+      "owner": "质量保障"
+    },
+    {
+      "id": "converted_headcount",
+      "code": null,
+      "label": "折算总人力",
+      "unit": "人",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "headcount_center + headcount_outsourced * outsourced_factor",
+      "deps": [
+        "headcount_center",
+        "headcount_outsourced",
+        "outsourced_factor"
+      ],
+      "target": null,
+      "direction": "up",
+      "precision": 2,
+      "description": "中心人力 + 外包人力 × 折算系数，用于 2.4 的折算人均口径。",
+      "formula": "center + outsourced * factor",
+      "hidden": true
+    },
+    {
+      "id": "rr_on_time_rate",
+      "code": "2.0.2",
+      "label": "RR按期达成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "rr_on_time_count / rr_delivered_planned * 100",
+      "deps": [
+        "rr_on_time_count",
+        "rr_delivered_planned"
+      ],
+      "target": 90,
+      "direction": "up",
+      "precision": 2,
+      "description": "已交付 RR 中按期交付的比例。分子分母取同一批 RR 事实，避免窗口边界造成口径错位。",
+      "formula": "on_time / planned * 100（同一批已交付 RR）",
+      "owner": "研发管理部",
+      "primary": true,
+      "indicator": false
+    },
+    {
+      "id": "mr_delivery_per_capita",
+      "code": "2.1",
+      "label": "MR研发人均交付数",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_delivered_count / headcount_center / max(months, 1)",
+      "deps": [
+        "mr_delivered_count",
+        "headcount_center"
+      ],
+      "target": 1.2,
+      "direction": "up",
+      "precision": 2,
+      "description": "窗口内 MR 交付数 ÷ 中心人力 ÷ 月数，衡量人均对外交付产出。",
+      "formula": "delivered / headcount / months",
+      "owner": "研发管理部",
       "primary": true
     },
     {
-      "id": "delivered_items",
-      "label": "交付工作项数",
-      "unit": "项/周",
-      "type": "atomic",
-      "layer": "delivery",
-      "fact": "workitem.closed",
-      "agg": "count",
-      "measure": null,
-      "normalize": {
-        "per": "week"
-      },
+      "id": "mr_impl_per_capita",
+      "code": "2.2",
+      "label": "MR研发人均实现数",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_dev_done_count / headcount_center / max(months, 1)",
+      "deps": [
+        "mr_dev_done_count",
+        "headcount_center"
+      ],
+      "target": 1.6,
       "direction": "up",
-      "target": 25,
-      "precision": 1,
-      "description": "每周关闭的工作项数量，反映需求消化速度。",
-      "formula": "count(workitem.closed) / window_weeks",
+      "precision": 2,
+      "description": "窗口内 MR 开发完成数 ÷ 中心人力 ÷ 月数，衡量人均实现产出。",
+      "formula": "dev_done / headcount / months",
+      "owner": "研发管理部"
+    },
+    {
+      "id": "mr_impl_per_capita_live",
+      "code": "2.3",
+      "label": "MR研发人均实现数（实时）",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_dev_done_count / headcount_center / max(months, 1)",
+      "deps": [
+        "mr_dev_done_count",
+        "headcount_center"
+      ],
+      "target": 1.6,
+      "direction": "up",
+      "precision": 2,
+      "description": "与 2.2 同口径，按当前窗口实时计算；配合同比视图对比 2025 全年与 2026 年 1-10 月。",
+      "formula": "dev_done / headcount / months",
       "owner": "研发管理部",
+      "primary": true,
+      "realtime": true
+    },
+    {
+      "id": "mr_impl_per_capita_converted",
+      "code": "2.4",
+      "label": "MR研发人均实现数（中心+外包折算）",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_dev_done_count / converted_headcount / max(months, 1)",
+      "deps": [
+        "mr_dev_done_count",
+        "converted_headcount"
+      ],
+      "target": 1.4,
+      "direction": "up",
+      "precision": 2,
+      "description": "分母改用中心人力与外包折算人力之和，口径更贴近实际投入；可按项目组下钻核对人力口径。",
+      "formula": "dev_done / (center + outsourced*factor) / months",
+      "owner": "研发管理部"
+    },
+    {
+      "id": "mr_analysis_throughput",
+      "code": "2.7",
+      "label": "MR人均分析吞吐率",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_analysis_done_count / headcount_center / max(months, 1)",
+      "deps": [
+        "mr_analysis_done_count",
+        "headcount_center"
+      ],
+      "target": 1.8,
+      "direction": "up",
+      "precision": 2,
+      "description": "人均每月完成需求分析的 MR 数，衡量分析环节产能。",
+      "formula": "analysis_done / headcount / months",
+      "owner": "需求分析组"
+    },
+    {
+      "id": "mr_dev_throughput",
+      "code": "2.9",
+      "label": "MR人均开发吞吐率",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_dev_done_count / headcount_center / max(months, 1)",
+      "deps": [
+        "mr_dev_done_count",
+        "headcount_center"
+      ],
+      "target": 1.6,
+      "direction": "up",
+      "precision": 2,
+      "description": "人均每月完成开发的 MR 数，衡量开发环节产能。",
+      "formula": "dev_done / headcount / months",
+      "owner": "开发组"
+    },
+    {
+      "id": "mr_test_throughput",
+      "code": "2.11",
+      "label": "MR人均测试吞吐率",
+      "unit": "个/人月",
+      "type": "derived",
+      "layer": "detail",
+      "expr": "mr_test_done_count / headcount_center / max(months, 1)",
+      "deps": [
+        "mr_test_done_count",
+        "headcount_center"
+      ],
+      "target": 1.7,
+      "direction": "up",
+      "precision": 2,
+      "description": "人均每月完成测试的 MR 数，衡量测试环节产能。",
+      "formula": "test_done / headcount / months",
+      "owner": "质量保障"
+    },
+    {
+      "id": "analysis_gen_rate",
+      "code": "3.1",
+      "label": "需求分析生成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "process",
+      "expr": "ai_analysis_count / total_analysis_count * 100",
+      "deps": [
+        "ai_analysis_count",
+        "total_analysis_count"
+      ],
+      "target": 60,
+      "direction": "up",
+      "precision": 2,
+      "description": "AI 生成的需求分析份数占分析总份数比例。",
+      "formula": "ai_analysis / total_analysis * 100",
+      "owner": "工程效能"
+    },
+    {
+      "id": "solution_gen_rate",
+      "code": "3.2",
+      "label": "需求方案生成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "process",
+      "expr": "ai_solution_count / total_solution_count * 100",
+      "deps": [
+        "ai_solution_count",
+        "total_solution_count"
+      ],
+      "target": 55,
+      "direction": "up",
+      "precision": 2,
+      "description": "AI 生成的需求方案份数占方案总份数比例。",
+      "formula": "ai_solution / total_solution * 100",
+      "owner": "工程效能"
+    },
+    {
+      "id": "code_gen_rate",
+      "code": "3.3",
+      "label": "代码生成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "process",
+      "expr": "ai_lines / total_lines * 100",
+      "deps": [
+        "ai_lines",
+        "total_lines"
+      ],
+      "target": 45,
+      "direction": "up",
+      "precision": 2,
+      "description": "AI 生成代码行数占代码变更总行数比例，按行统计。",
+      "formula": "ai_lines / total_lines * 100",
+      "owner": "工程效能",
       "primary": true
+    },
+    {
+      "id": "ai_testcase_gen_rate",
+      "code": "3.4",
+      "label": "AI测试用例生成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "process",
+      "expr": "ai_cases / total_cases * 100",
+      "deps": [
+        "ai_cases",
+        "total_cases"
+      ],
+      "target": 50,
+      "direction": "up",
+      "precision": 2,
+      "description": "AI 生成的测试用例数占用例总数比例。",
+      "formula": "ai_cases / total_cases * 100",
+      "owner": "质量保障"
+    },
+    {
+      "id": "ai_script_gen_rate",
+      "code": "3.5",
+      "label": "AI脚本生成率",
+      "unit": "%",
+      "type": "derived",
+      "layer": "process",
+      "expr": "ai_scripts / total_scripts * 100",
+      "deps": [
+        "ai_scripts",
+        "total_scripts"
+      ],
+      "target": 40,
+      "direction": "up",
+      "precision": 2,
+      "description": "AI 生成的自动化测试脚本数占脚本总数比例。",
+      "formula": "ai_scripts / total_scripts * 100",
+      "owner": "质量保障"
+    },
+    {
+      "id": "mr_ai_penetration",
+      "code": "3.6",
+      "label": "MR渗透率（累计）",
+      "unit": "%",
+      "type": "derived",
+      "layer": "process",
+      "expr": "mr_ai_touched_count / mr_created_count * 100",
+      "deps": [
+        "mr_ai_touched_count",
+        "mr_created_count"
+      ],
+      "target": 70,
+      "direction": "up",
+      "precision": 2,
+      "description": "窗口内使用过 AI 辅助的 MR 占全部 MR 比例；默认按 2026 年累计口径查看各项目组。",
+      "formula": "ai_touched / created * 100",
+      "owner": "工程效能",
+      "primary": true
+    },
+    {
+      "id": "rde_index",
+      "code": null,
+      "label": "研发提效指数",
+      "unit": "分",
+      "type": "composite",
+      "layer": "composite",
+      "direction": "up",
+      "target": 85,
+      "precision": 1,
+      "indicator": true,
+      "primary": true,
+      "deps": [
+        "rr_on_time_rate",
+        "mr_impl_per_capita",
+        "code_gen_rate",
+        "mr_impl_cycle",
+        "mr_ai_penetration"
+      ],
+      "scoring": {
+        "components": [
+          {
+            "dep": "rr_on_time_rate",
+            "weight": 0.25,
+            "goal": 90,
+            "scale": "higher_better"
+          },
+          {
+            "dep": "mr_impl_per_capita",
+            "weight": 0.2,
+            "goal": 1.6,
+            "scale": "higher_better"
+          },
+          {
+            "dep": "code_gen_rate",
+            "weight": 0.2,
+            "goal": 45,
+            "scale": "higher_better"
+          },
+          {
+            "dep": "mr_impl_cycle",
+            "weight": 0.2,
+            "goal": 120,
+            "scale": "lower_better"
+          },
+          {
+            "dep": "mr_ai_penetration",
+            "weight": 0.15,
+            "goal": 70,
+            "scale": "higher_better"
+          }
+        ]
+      },
+      "description": "由 RR 按期达成率、人均实现数、代码生成率、MR 实现周期与 MR 渗透率按本体权重归一化合成，权重与目标值均定义在本体中。",
+      "formula": "Σ(weight × normalize(dep, goal)) / Σweight × 100",
+      "owner": "研发管理部"
     }
   ]
 }

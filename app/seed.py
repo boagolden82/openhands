@@ -1,7 +1,8 @@
-"""确定性演示数据：组织层级 + 26 周研发事实。
+"""确定性演示数据：研发中心 -> 项目组 -> 研发项目 -> MR/RR 全流程事实。
 
-数据不是随机噪声：团队有各自的能力基线（速度/质量/流程成熟度），
-并在中途注入一次流程改进，使指标趋势可解释、可讲故事。
+数据有故事性：各项目组有不同的人效基线、AI 采纳节奏与交付纪律，
+2026 年起全中心推进 AI 辅助研发，因此生成率与渗透率呈阶梯上升。
+时间跨度覆盖 2025-01 至 2026-10，便于做"2025 全年 vs 2026 年 1-10 月"同比。
 """
 from __future__ import annotations
 
@@ -12,230 +13,248 @@ from typing import Any
 from .ontology import Ontology
 from .store import FactStore
 
-WEEKS = 26
-ANCHOR = datetime(2026, 11, 16)  # 数据窗口的最后一周起点
+START = datetime(2025, 1, 1)
+END = datetime(2026, 10, 31)
 
-TEAMS = [
-    {"id": "team:pay", "label": "支付中台", "project": ("project:pay", "支付平台"),
-     "repo": ("repo:pay-core", "pay-core"), "people": ["陈可", "李维", "王睿", "周涵"],
-     "speed": 1.15, "quality": 0.75, "maturity": 0.85, "start_week": 0},
-    {"id": "team:mall", "label": "交易前台", "project": ("project:mall", "交易商城"),
-     "repo": ("repo:mall-web", "mall-web"), "people": ["赵敏", "孙浩", "吴桐", "郑楠", "冯磊"],
-     "speed": 1.0, "quality": 1.0, "maturity": 0.6, "start_week": 0},
-    {"id": "team:data", "label": "数据平台", "project": ("project:data", "数据智能"),
-     "repo": ("repo:data-etl", "data-etl"), "people": ["何静", "许阳", "邓菲"],
-     "speed": 0.85, "quality": 0.85, "maturity": 0.95, "start_week": 0},
-    {"id": "team:infra", "label": "基础架构", "project": ("project:infra", "云原生底座"),
-     "repo": ("repo:infra-k8s", "infra-k8s"), "people": ["马骁", "柳青", "袁博"],
-     "speed": 0.95, "quality": 1.1, "maturity": 0.9, "start_week": 0},
-    {"id": "team:mobile", "label": "移动端", "project": ("project:app", "移动应用"),
-     "repo": ("repo:app-android", "app-android"), "people": ["唐宁", "范洁", "蒋舟"],
-     "speed": 1.05, "quality": 0.9, "maturity": 0.55, "start_week": 6},
+# AI 辅助研发的分阶段推广：越晚比例越高
+AI_PHASES = [
+    (datetime(2025, 1, 1), 0.15),
+    (datetime(2025, 7, 1), 0.30),
+    (datetime(2026, 1, 1), 0.55),
+    (datetime(2026, 6, 1), 0.72),
 ]
 
-DEPARTMENTS = [
-    {"id": "org:tech", "label": "技术中心", "teams": ["team:pay", "team:mall", "team:data", "team:infra", "team:mobile"]},
+GROUPS = [
+    {
+        "id": "group:trade", "label": "交易研发组", "center": ("center:rd", "研发中心"),
+        "projects": [("project:trade-core", "交易核心"), ("project:trade-app", "交易前端")],
+        "people": 42, "outsourced": 12, "factor": 0.7,
+        "speed": 1.10, "discipline": 0.93, "ai_bias": 0.05, "volume": 1.15,
+    },
+    {
+        "id": "group:pay", "label": "支付研发组", "center": ("center:rd", "研发中心"),
+        "projects": [("project:pay-core", "支付核心")],
+        "people": 28, "outsourced": 8, "factor": 0.7,
+        "speed": 1.05, "discipline": 0.90, "ai_bias": 0.02, "volume": 0.95,
+    },
+    {
+        "id": "group:data", "label": "数据研发组", "center": ("center:rd", "研发中心"),
+        "projects": [("project:data-plat", "数据平台"), ("project:data-etl", "数据集成")],
+        "people": 24, "outsourced": 4, "factor": 0.7,
+        "speed": 0.92, "discipline": 0.96, "ai_bias": 0.10, "volume": 0.85,
+    },
+    {
+        "id": "group:infra", "label": "基础架构组", "center": ("center:rd", "研发中心"),
+        "projects": [("project:infra-cloud", "云原生底座")],
+        "people": 20, "outsourced": 6, "factor": 0.7,
+        "speed": 0.88, "discipline": 0.88, "ai_bias": 0.08, "volume": 0.75,
+    },
+    {
+        "id": "group:growth", "label": "增长业务组", "center": ("center:rd", "研发中心"),
+        "projects": [("project:growth-mkt", "营销增长"), ("project:growth-crm", "客户运营")],
+        "people": 18, "outsourced": 10, "factor": 0.7,
+        "speed": 1.18, "discipline": 0.84, "ai_bias": 0.06, "volume": 1.05,
+    },
 ]
 
-SPRINT_DAYS = 14
-IMPROVEMENT_WEEK = 14  # 引入自动化测试与灰度发布
+SOURCES = ["业务方提出", "客户反馈", "内部规划", "线上问题"]
+PRIORITIES = ["P0", "P1", "P2", "P3"]
 
 
-def _dt(week: int, day_offset: float) -> datetime:
-    return ANCHOR + timedelta(weeks=week - WEEKS, days=day_offset)
+def _ai_ratio(rng: random.Random, at: datetime, bias: float) -> float:
+    ratio = 0.0
+    for since, level in AI_PHASES:
+        if at >= since:
+            ratio = level
+    return max(0.0, min(0.95, ratio + bias + rng.uniform(-0.10, 0.10)))
 
 
 def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def seed(onto: Ontology, store: FactStore, weeks: int = WEEKS) -> dict[str, Any]:
-    rng = random.Random(20261116)
+def seed(onto: Ontology, store: FactStore) -> dict[str, Any]:
+    rng = random.Random(20261120)
     store.clear()
 
     facts: list[dict[str, Any]] = []
     relations: list[tuple[str, str, str]] = []
     entities: list[dict[str, Any]] = []
 
-    def add_entity(entity_id: str, class_id: str, label: str, parent_id: str | None = None,
-                   attrs: dict[str, Any] | None = None) -> None:
+    def add_entity(entity_id: str, class_id: str, label: str,
+                   parent_id: str | None = None, attrs: dict[str, Any] | None = None) -> None:
         entities.append({"id": entity_id, "class_id": class_id, "label": label,
                          "parent_id": parent_id, "attrs": attrs or {}})
 
-    for dept in DEPARTMENTS:
-        add_entity(dept["id"], "dev:Organization", dept["label"])
+    center_id, center_label = GROUPS[0]["center"]
+    add_entity(center_id, "dev:Center", center_label)
 
-    for team in TEAMS:
-        tid, tlabel = team["id"], team["label"]
-        add_entity(tid, "dev:Team", tlabel, "org:tech")
-        relations.append(("belongsTo", tid, "org:tech"))
+    for group in GROUPS:
+        gid, glabel = group["id"], group["label"]
+        add_entity(gid, "dev:ProjectGroup", glabel, center_id,
+                   {"people": group["people"], "outsourced": group["outsourced"]})
+        relations.append(("belongsTo", gid, center_id))
 
-        proj_id, proj_label = team["project"]
-        repo_id, repo_label = team["repo"]
-        add_entity(proj_id, "dev:Project", proj_label, tid, {"owner": tlabel})
-        add_entity(repo_id, "dev:Repository", repo_label, proj_id, {"stack": "backend"})
-        relations += [("belongsTo", proj_id, tid), ("belongsTo", repo_id, proj_id),
-                      ("ownedBy", proj_id, tid), ("ownedBy", repo_id, tid)]
+        for pid, plabel in group["projects"]:
+            add_entity(pid, "dev:Project", plabel, gid)
+            relations.append(("belongsTo", pid, gid))
 
-        for person in team["people"]:
-            pid = f"person:{person}"
-            add_entity(pid, "dev:Person", person, tid)
-            relations.append(("belongsTo", pid, tid))
+        # 人力快照：按月记录，外包按折算系数计入
+        month = START
+        while month < END:
+            facts.append({
+                "fact_type": "headcount.snapshot", "subject_id": gid,
+                "subject_class": "dev:ProjectGroup", "occurred_at": _iso(month),
+                "measures": {
+                    "center_headcount": group["people"] + rng.randint(-1, 2),
+                    "outsourced_headcount": group["outsourced"] + rng.randint(-1, 2),
+                    "outsourced_factor": group["factor"],
+                },
+                "fields": {},
+            })
+            month += timedelta(days=30)
 
-        sprint_seq = 0
-        for week in range(team["start_week"], weeks):
-            if week % 2 == 0:
-                sprint_seq += 1
-                sprint_id = f"sprint:{tid.split(':')[1]}-{sprint_seq:02d}"
-                started = _dt(week, 0)
-                ended = started + timedelta(days=SPRINT_DAYS)
-                add_entity(sprint_id, "dev:Sprint", f"{tlabel} S{sprint_seq}",
-                           tid, {"started": _iso(started), "ended": _iso(ended)})
-                relations.append(("belongsTo", sprint_id, tid))
-
-                improved = week >= IMPROVEMENT_WEEK
-                committed = rng.randint(30, 46) * team["speed"]
-                reliability = min(0.98, 0.72 + 0.12 * team["maturity"] + (0.06 if improved else 0))
-                completed = committed * rng.uniform(reliability - 0.06, reliability + 0.06)
+        # RR：按研发项目、按月计划与交付
+        for pid, plabel in group["projects"]:
+            month = START
+            while month < END:
+                planned = rng.randint(6, 12)
+                # 按期达成率随年份提升：滚动排期与 AI 辅助估算带来的真实改善
+                year_lift = 0.055 * (month.year - START.year)
+                on_time_rate = min(0.99, group["discipline"] + year_lift
+                                   + rng.uniform(-0.09, 0.05))
+                delivered = max(0, round(planned * rng.uniform(0.85, 1.0)))
+                on_time = min(delivered, round(planned * on_time_rate))
+                rr_id = f"rr:{pid}-{month:%Y%m}"
+                add_entity(rr_id, "dev:RR", f"{plabel} {month:%Y-%m} RR", pid)
                 facts.append({
-                    "fact_type": "sprint.completed", "subject_id": sprint_id,
-                    "subject_class": "dev:Sprint", "occurred_at": _iso(ended),
-                    "measures": {"committed_points": round(committed),
-                                 "completed_points": round(completed)},
-                    "fields": {"team": tlabel},
+                    "fact_type": "rr.planned", "subject_id": rr_id,
+                    "subject_class": "dev:RR", "occurred_at": _iso(month),
+                    "measures": {"planned_count": planned},
+                    "fields": {"project": pid},
                 })
-
-            sprint_id = f"sprint:{tid.split(':')[1]}-{sprint_seq:02d}"
-            improved = week >= IMPROVEMENT_WEEK
-            items_this_week = max(1, int(round(rng.gauss(5.2 * team["speed"], 1.4))))
-
-            for n in range(items_this_week):
-                kind = rng.choices(
-                    ["story", "story", "story", "defect", "techdebt"],
-                    weights=[5, 5, 4, 2 + (1 if team["quality"] > 1 else 0), 1.4])[0]
-                cls = {"story": "dev:Story", "defect": "dev:Defect", "techdebt": "dev:TechDebt"}[kind]
-                wid = f"wi:{tid.split(':')[1]}-{week}-{n}"
-                created = _dt(week, rng.uniform(0, 6))
-                add_entity(wid, cls, f"{tlabel} 工作项 {week}-{n}", sprint_id, {"kind": kind})
-                relations += [("belongsTo", wid, sprint_id), ("inSprint", wid, sprint_id)]
-
-                points = rng.choice([1, 2, 3, 3, 5, 5, 8]) if kind != "defect" else rng.choice([1, 1, 2, 3])
-                status = rng.choices(["done", "in_progress", "todo", "blocked"],
-                                     weights=[6, 2, 2, 0.4])[0]
-                escaped = kind == "defect" and rng.random() < (0.22 * team["quality"])
                 facts.append({
-                    "fact_type": "workitem.created", "subject_id": wid, "subject_class": cls,
+                    "fact_type": "rr.delivered",
+                    "subject_id": rr_id,
+                    "subject_class": "dev:RR",
+                    "occurred_at": _iso(month + timedelta(days=27)),
+                    "measures": {"delivered_count": delivered, "on_time_count": on_time,
+                                 "planned_count": planned},
+                    "fields": {"project": pid},
+                })
+                month += timedelta(days=30)
+
+        # MR：每个项目组按周产出，走完分析/开发/测试/验收四阶段
+        week = START
+        seq = 0
+        while week < END:
+            # 产出规模逐年爬升：AI 辅助研发让同样的团队承接更多 MR
+            ramp = 1.0 + 0.22 * (week.year - START.year) + 0.15 * max(0, (week - START).days / 365 - 1)
+            count = max(1, int(round(rng.gauss(
+                7.2 * group["volume"] * group["speed"] * ramp, 1.6))))
+            for _ in range(count):
+                seq += 1
+                pid = rng.choice(group["projects"])[0]
+                mid = f"mr:{gid.split(':')[1]}-{seq:05d}"
+                created = week + timedelta(days=rng.uniform(0, 6), hours=rng.uniform(0, 23))
+
+                # 阶段时长：受 speed 影响，AI 采纳后整体压缩
+                ai = _ai_ratio(rng, created, group["ai_bias"])
+                # 渗透率是"MR 是否用过 AI"的二值判断，不等于该 MR 有 AI 产物
+                uses_ai = rng.random() < ai
+                fast = 1.0 - 0.28 * (ai if uses_ai else 0.0)
+                analysis_h = rng.uniform(4, 26) / group["speed"] * fast
+                dev_h = rng.uniform(12, 68) / group["speed"] * fast
+                test_h = rng.uniform(4, 30) / group["speed"] * fast
+                accept_h = rng.uniform(2, 18) * fast
+
+                analysis_done = created + timedelta(hours=analysis_h)
+                dev_done = analysis_done + timedelta(hours=dev_h)
+                test_done = dev_done + timedelta(hours=test_h)
+                accepted = test_done + timedelta(hours=accept_h)
+
+                priority = rng.choices(PRIORITIES, weights=[1, 3, 5, 2])[0]
+                add_entity(mid, "dev:MR", f"MR {gid.split(':')[1]}-{seq}", pid,
+                           {"priority": priority})
+                relations.append(("deliversTo", mid, pid))
+
+                facts.append({
+                    "fact_type": "mr.created", "subject_id": mid, "subject_class": "dev:MR",
                     "occurred_at": _iso(created),
-                    "measures": {"story_points": points},
-                    "fields": {"status": status, "title": f"{tlabel} 工作项", "priority": rng.choice(["P0", "P1", "P2", "P2"]),
-                               "escaped": escaped, "labels": [kind]},
+                    "measures": {},
+                    "fields": {"project": pid, "priority": priority,
+                               "source": rng.choice(SOURCES)},
                 })
-                if status == "done":
-                    closed = created + timedelta(days=rng.uniform(1.2, 6.5))
-                    facts.append({
-                        "fact_type": "workitem.closed", "subject_id": wid, "subject_class": cls,
-                        "occurred_at": _iso(closed), "measures": {},
-                        "fields": {"status": "done"},
-                    })
 
-                # 每个工作项 1~2 个提交
-                for c in range(rng.randint(1, 2)):
-                    author = rng.choice(team["people"])
-                    added = int(rng.gauss(120, 45))
-                    deleted = int(rng.gauss(35, 20))
-                    churn = int(max(0, added * rng.uniform(0.03, 0.22) * (1.25 - 0.4 * team["maturity"])))
-                    committed_at = created + timedelta(days=rng.uniform(0.3, 4.5), hours=rng.uniform(0, 9))
-                    facts.append({
-                        "fact_type": "commit.pushed", "subject_id": f"commit:{wid}-{c}",
-                        "subject_class": "dev:Commit", "occurred_at": _iso(committed_at),
-                        "measures": {"lines_added": max(added, 5), "lines_deleted": max(deleted, 0),
-                                     "lines_changed": max(added, 5) + max(deleted, 0),
-                                     "churn_lines": churn, "files_changed": rng.randint(1, 9)},
-                        "fields": {"author": author, "repo": repo_id, "message": f"feat: {wid}"},
-                    })
+                # 分析：AI 生成分析与方案份数
+                total_analysis = rng.randint(2, 5)
+                total_solution = rng.randint(1, 3)
+                if uses_ai:
+                    ai_analysis = round(total_analysis * rng.uniform(0.4, 0.9))
+                    ai_solution = round(total_solution * rng.uniform(0.4, 0.9))
+                else:
+                    ai_analysis = ai_solution = 0
+                facts.append({
+                    "fact_type": "mr.analysis.done", "subject_id": mid,
+                    "subject_class": "dev:MR", "occurred_at": _iso(analysis_done),
+                    "measures": {"ai_analysis": ai_analysis, "total_analysis": total_analysis,
+                                 "ai_solution": ai_solution, "total_solution": total_solution},
+                    "fields": {},
+                })
 
-                # 合并请求与评审
-                if rng.random() < 0.9:
-                    pr_id = f"pr:{wid}"
-                    pr_created = created + timedelta(days=rng.uniform(0.5, 3))
-                    review_lag = rng.uniform(2, 30) * (1.35 - 0.5 * team["maturity"])
-                    if week >= IMPROVEMENT_WEEK:
-                        review_lag *= 0.72
-                    merged = pr_created + timedelta(hours=review_lag)
-                    add_entity(pr_id, "dev:PullRequest", f"PR {wid}", repo_id,
-                               {"repo_label": repo_label})
-                    relations += [("belongsTo", pr_id, repo_id), ("implements", pr_id, wid)]
+                # 开发：AI 生成代码行占比
+                total_lines = rng.randint(120, 900)
+                ai_lines = round(total_lines * rng.uniform(0.4, 0.9)) if uses_ai else 0
+                facts.append({
+                    "fact_type": "mr.dev.done", "subject_id": mid, "subject_class": "dev:MR",
+                    "occurred_at": _iso(dev_done),
+                    "measures": {"ai_lines": ai_lines, "total_lines": total_lines},
+                    "fields": {},
+                })
+
+                # 测试：用例与脚本
+                total_cases = rng.randint(4, 18)
+                total_scripts = rng.randint(2, 9)
+                ai_cases = round(total_cases * rng.uniform(0.4, 0.9)) if uses_ai else 0
+                ai_scripts = round(total_scripts * rng.uniform(0.4, 0.9)) if uses_ai else 0
+                facts.append({
+                    "fact_type": "mr.test.done", "subject_id": mid, "subject_class": "dev:MR",
+                    "occurred_at": _iso(test_done),
+                    "measures": {"ai_cases": ai_cases, "total_cases": total_cases,
+                                 "ai_scripts": ai_scripts, "total_scripts": total_scripts},
+                    "fields": {},
+                })
+
+                # 验收：大部分通过，少量返工
+                if rng.random() < 0.90:
                     facts.append({
-                        "fact_type": "pr.merged", "subject_id": pr_id,
-                        "subject_class": "dev:PullRequest", "occurred_at": _iso(merged),
-                        "measures": {"lines_changed": rng.randint(40, 420),
-                                     "open_hours": round((merged - pr_created).total_seconds() / 3600, 2)},
-                        "fields": {"author": author, "repo": repo_id, "workitem": wid},
+                        "fact_type": "mr.accepted", "subject_id": mid,
+                        "subject_class": "dev:MR", "occurred_at": _iso(accepted),
+                        "measures": {}, "fields": {},
                     })
-                    if rng.random() < 0.9 * min(1.0, team["maturity"] + 0.25):
+                    if rng.random() < 0.88:
                         facts.append({
-                            "fact_type": "review.submitted", "subject_id": f"review:{pr_id}",
-                            "subject_class": "dev:Review", "occurred_at": _iso(pr_created + timedelta(hours=review_lag * 0.4)),
-                            "measures": {"comments": rng.randint(0, 7)},
-                            "fields": {"reviewer": rng.choice(team["people"]), "pr": pr_id,
-                                       "verdict": rng.choices(["approve", "comment", "request_changes"],
-                                                              weights=[7, 2, 1])[0],
-                                       "repo": repo_id},
+                            "fact_type": "mr.delivered", "subject_id": mid,
+                            "subject_class": "dev:MR",
+                            "occurred_at": _iso(accepted + timedelta(hours=rng.uniform(1, 12))),
+                            "measures": {}, "fields": {"project": pid},
                         })
 
-            # 流水线
-            runs = max(2, int(rng.gauss(9 * team["speed"], 2.2)))
-            for r in range(runs):
-                started = _dt(week, rng.uniform(0, 7))
-                ok = rng.random() < min(0.985, 0.80 + 0.14 * team["maturity"] + (0.04 if improved else 0))
-                duration = rng.gauss(13.5 - 3.2 * team["maturity"], 3.5)
-                if improved:
-                    duration *= 0.85
-                facts.append({
-                    "fact_type": "pipeline.completed", "subject_id": f"ci:{tid.split(':')[1]}-{week}-{r}",
-                    "subject_class": "dev:PipelineRun",
-                    "occurred_at": _iso(started + timedelta(minutes=max(duration, 2))),
-                    "measures": {"duration_sec": int(max(duration, 2) * 60)},
-                    "fields": {"status": "success" if ok else rng.choice(["failed", "failed", "canceled"]),
-                               "repo": repo_id, "stage": "build-test"},
-                })
-
-            # 部署
-            deploys = max(1, int(rng.gauss(3.4 * team["speed"], 1.3)))
-            for d in range(deploys):
-                dep_at = _dt(week, rng.uniform(0.5, 6.8))
-                env = rng.choices(["dev", "staging", "prod"], weights=[2, 2, 5])[0]
-                lead = max(6.0, rng.gauss(92 - 30 * team["maturity"], 26))
-                if improved:
-                    lead *= 0.78
-                facts.append({
-                    "fact_type": "deployment.finished", "subject_id": f"deploy:{tid.split(':')[1]}-{week}-{d}",
-                    "subject_class": "dev:Deployment", "occurred_at": _iso(dep_at),
-                    "measures": {"duration_sec": int(rng.gauss(420, 90)),
-                                 "lead_time_hours": round(lead, 1)},
-                    "fields": {"env": env, "repo": repo_id, "status": "success"},
-                })
-                if env == "prod" and rng.random() < 0.16 * team["quality"] * (0.7 if improved else 1):
-                    resolved = dep_at + timedelta(minutes=rng.gauss(78 * team["quality"], 26))
+                if uses_ai:
+                    touched = [name for name, value in
+                               (("analysis", ai_analysis), ("code", ai_lines),
+                                ("cases", ai_cases), ("scripts", ai_scripts)) if value]
                     facts.append({
-                        "fact_type": "incident.resolved", "subject_id": f"inc:{tid.split(':')[1]}-{week}-{d}",
-                        "subject_class": "dev:Incident", "occurred_at": _iso(resolved),
-                        "measures": {"mttr_minutes": max(8, round((resolved - dep_at).total_seconds() / 60))},
-                        "fields": {"severity": rng.choices(["SEV1", "SEV2", "SEV3"], weights=[1, 3, 5])[0],
-                                   "repo": repo_id, "team": tlabel},
+                        "fact_type": "mr.ai.touched", "subject_id": mid,
+                        "subject_class": "dev:MR", "occurred_at": _iso(created),
+                        "measures": {}, "fields": {"artifacts": touched},
                     })
 
-            if week % 4 == 3:
-                facts.append({
-                    "fact_type": "release.published", "subject_id": f"release:{tid.split(':')[1]}-{week}",
-                    "subject_class": "dev:Release", "occurred_at": _iso(_dt(week, 6)),
-                    "measures": {},
-                    "fields": {"version": f"v1.{week // 4}", "project": proj_label, "repo": repo_id},
-                })
+            week += timedelta(weeks=1)
 
     store.upsert_entities(entities)
     store.add_facts(facts, source="seed")
     store.add_relations(relations)
     store.set_setting("seeded", True)
     store.set_setting("seeded_at", datetime.now().isoformat(timespec="seconds"))
-    return {"facts": len(facts), "relations": len(relations), "weeks": weeks}
+    return {"facts": len(facts), "entities": len(entities), "relations": len(relations)}

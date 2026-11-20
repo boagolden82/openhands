@@ -4,7 +4,7 @@
 
 - 零第三方依赖：仅用 Python 标准库（`sqlite3` + `http.server`），不需要 pip 装任何包
 - 原生支持 Windows：双击 `start.bat` 或 `RDE-Onto.exe` 即用，无需安装 Python（使用发布包时）
-- 自带 26 周演示数据，打开就有 35 个指标、5 个团队、4676 条事实可看
+- 自带两年演示数据（2025-01 ~ 2026-11），打开就有 19 个对外指标、5 个项目组、约 2.4 万条事实可看，并自带 2025 全年 vs 2026 年同比
 
 ---
 
@@ -68,9 +68,9 @@ build_exe.bat
 本系统把度量知识抽成四层本体：
 
 ```
-类（Class）        研发域里有哪些东西：组织、团队、项目、代码库、迭代、需求、缺陷、提交、部署、事件……
-关系（Relation）    它们怎么连：隶属于（传递）、归属团队、属于迭代、实现、部署、由…引起……
-事实（FactType）    发生过什么：workitem.created、commit.pushed、deployment.finished……
+类（Class）        研发域里有哪些东西：研发中心、项目组、研发项目、MR、RR、四个阶段事件、人力快照……
+关系（Relation）    它们怎么连：隶属于（传递）、归属项目组、MR 交付到项目、由谁承担……
+事实（FactType）    发生过什么：mr.created、mr.analysis.done、mr.dev.done、mr.test.done、mr.accepted、rr.delivered……
 指标（Metric）      怎么算：原子（直接聚合事实）/ 派生（公式）/ 配对（双事实 join）/ 复合（加权评分）
 ```
 
@@ -78,11 +78,12 @@ build_exe.bat
 
 | 能力 | 本体里的表达 | 效果 |
 | --- | --- | --- |
-| 子类推理 | `dev:Story ⊑ dev:Requirement ⊑ dev:WorkItem ⊑ core:Artifact ⊑ core:Entity` | 写 `filter: {class: "dev:Defect"}` 就能统计所有缺陷子类，不用维护 `type='bug'` 这类字符串 |
-| 传递关系 | `belongsTo` 标记 `transitive: true` | 事实只记录 `repo`，团队/项目维度靠 `repo → project → team → org` 推理出来，不需要宽表打平 |
+| 子类推理 | `dev:MR ⊑ core:Artifact ⊑ core:Entity` | 写 `filter: {class: "core:Artifact"}` 就能统计所有制品子类，不用维护 `type='mr'` 这类字符串 |
+| 传递关系 | `belongsTo` 标记 `transitive: true` | 事实只记录 MR，项目组维度靠 `MR → project → projectGroup → center` 推理出来，不需要宽表打平 |
 | 依赖闭包 | 指标 `deps` 自动拓扑排序 | 派生指标按依赖顺序求值，且能检测循环依赖 |
-| 配对事实 | `type: "pair"` + `startFact`/`endFact` | 需求交付周期 = `workitem.closed` 时间 − `workitem.created` 时间，跨两类事实按主体 join |
-| 加权评分 | `scoring.components[].weight/goal/scale` | 研发效能指数的权重、目标值都是数据，可解释、可调 |
+| 配对事实 | `type: "pair"` + `startFact`/`endFact` | MR 开发周期 = `mr.dev.done` 时间 − `mr.analysis.done` 时间，跨两类事实按同一 MR join |
+| 快照聚合 | `agg: "snapshot"` + `snapshotMode: sum/mean` | 人力快照取"窗口内各主体最新值"再求和，比率型（折算系数）取均值，避免人均被高估数倍 |
+| 加权评分 | `scoring.components[].weight/goal/scale` | 研发提效指数的权重、目标值都是数据，可解释、可调 |
 | 一致性校验 | 事实的 `subject_class` 必须是事实类型声明主体的子类 | CSV 导入时直接拒绝"用提交类承载工作项事实"这类脏数据 |
 
 改一个指标口径的完整流程：编辑 `ontology/ontology.json` → 重启服务。不用改 Python、不用改前端。
@@ -93,10 +94,10 @@ build_exe.bat
 
 | 页面 | 内容 |
 | --- | --- |
-| **效能总览** | 研发效能指数环形仪表 + 走势、17 张 KPI 卡（含迷你走势与环比）、核心指标趋势图（带目标线）、团队效能横向对比、自动洞察、指标达标矩阵 |
-| **指标字典** | 35 个指标的可搜索清单，点开看口径公式、目标、达成率、依赖关系、趋势图，以及按团队 / 代码库 / 工作类型的下钻 |
+| **效能总览** | 研发提效指数环形仪表 + 走势、KPI 卡（含迷你走势与环比）、核心指标趋势图（带目标线）、项目组效能对比、**2025 vs 2026 同比对比表**、自动洞察、指标达标矩阵 |
+| **指标字典** | 44 个指标的可搜索清单（含编号 2.0.1~3.6），点开看口径公式、目标、达成率、依赖关系、趋势图，以及按项目组 / 研发项目 / 阶段的下钻 |
 | **指标血缘** | 从北极星指标出发的分层血缘图，依赖在左、派生在右，点击节点跳到指标详情 |
-| **本体模型** | 类层次树（27 类）、关系定义（20 个，标注传递性与逆关系）、事实类型（11 种），点任一节点看它与哪些关系、事实、指标相连 |
+| **本体模型** | 类层次树（28 类）、关系定义（14 个，标注传递性与逆关系）、事实类型（10 种），点任一节点看它与哪些关系、事实、指标相连 |
 | **数据接入** | 拖拽 CSV 导入（本体校验 + 逐行错误报告）、按事实类型下载模板、数据质量体检、事实浏览器 |
 | **分析预测** | 蒙特卡洛交付预测（P50/P85/P95）、按影响度排序的改进建议、10×10 指标相关性热力图 |
 
@@ -108,24 +109,25 @@ build_exe.bat
 
 ### 1. 下载模板
 
-数据接入页选一个事实类型 → 点"下载模板"，得到该类型的标准表头。例如 `deployment.finished`：
+数据接入页选一个事实类型 → 点"下载模板"，得到该类型的标准表头。例如 `mr.dev.done`：
 
 ```csv
-fact_type,subject_id,subject_class,finished_at,measure:duration_sec,field:env,field:repo,field:status,field:lead_time_hours
+fact_type,subject_id,subject_class,occurred_at,measure:ai_lines,measure:total_lines,field:project,field:phase
 ```
 
 ### 2. 从你的系统导出并映射
 
 | 事实类型 | 常见来源 |
 | --- | --- |
-| `workitem.created` / `workitem.closed` | Jira、禅道、TAPD、飞书项目 |
-| `commit.pushed` / `pr.merged` / `review.submitted` | GitLab、GitHub、Bitbucket、Gerrit |
-| `pipeline.completed` | Jenkins、GitLab CI、GitHub Actions |
-| `deployment.finished` | Argo CD、Spinnaker、自建发布平台 |
-| `incident.resolved` | PagerDuty、Opsgenie、自建告警平台 |
-| `sprint.completed` | Jira、Azure DevOps |
+| `mr.created` / `mr.analysis.done` / `mr.dev.done` / `mr.test.done` / `mr.accepted` | GitLab、GitHub、Gerrit、TAPD |
+| `mr.delivered` | 发布平台、流水线记录 |
+| `mr.ai.touched` | AI 编码助手、AI 需求工具的使用日志 |
+| `rr.planned` / `rr.delivered` | 项目管理系统、Excel 月报 |
+| `headcount.snapshot` | HR 系统、外包台账（按月快照） |
 
-关键点：`repo` 字段要填**已注册的代码库实体 id**（如 `repo:pay-core`），维度上卷（团队/项目）靠它推理。若要新增团队或代码库，先通过 API 或直接改 `data/rde.db` 的 `entities` 表注册实体。
+关键点：`project` 字段要填**已注册的研发项目实体 id**（如 `project:pay-core`），维度上卷（项目组/研发中心）靠 `belongsTo` 关系推理。若要新增项目组或项目，先通过 API 或直接改 `data/rde.db` 的 `entities` 表注册实体。
+
+人力快照的 `outsourced_factor` 是**比率型度量**，本体里用 `snapshotMode: "mean"` 声明，跨项目组取均值而不是求和——否则折算人均会被放大数倍。
 
 ### 3. 导入
 
@@ -140,13 +142,16 @@ fact_type,subject_id,subject_class,finished_at,measure:duration_sec,field:env,fi
 
 ```bash
 # 事实列表（可按类型过滤）
-curl "http://127.0.0.1:8765/api/facts?factType=deployment.finished&limit=20"
+curl "http://127.0.0.1:8765/api/facts?factType=mr.created&limit=20"
 
-# 指标计算（可传 start/end/granularity/team）
-curl "http://127.0.0.1:8765/api/overview?granularity=week&periods=12"
+# 总览（可传 start/end/granularity/periods/projectGroup）
+curl "http://127.0.0.1:8765/api/overview?granularity=month&periods=12"
+
+# 2025 全年 vs 2026 年 1-10 月同比
+curl "http://127.0.0.1:8765/api/compare?baseStart=2025-01-01&baseEnd=2025-12-31&currentStart=2026-01-01&currentEnd=2026-10-31"
 
 # 单个指标 + 下钻
-curl "http://127.0.0.1:8765/api/metrics/lead_time_hours?granularity=month"
+curl "http://127.0.0.1:8765/api/metrics/mr_impl_cycle?granularity=month"
 
 # 导出报告
 curl -o report.html "http://127.0.0.1:8765/api/report?format=html"
@@ -159,14 +164,37 @@ curl -o metrics.csv  "http://127.0.0.1:8765/api/report?format=csv"
 
 ## 六、指标清单
 
-35 个指标分 4 层。完整口径（公式、目标、负责人、计算方式）见 [docs/metrics.md](docs/metrics.md)。
+共 44 个指标：19 个对外展示 + 25 个内部口径（只做分子分母）。完整口径（公式、目标、负责人、计算方式）见 [docs/metrics.md](docs/metrics.md)。
 
-| 层级 | 指标 |
+### 一、指标明细
+
+| 编号 | 指标 | 说明 |
+| --- | --- | --- |
+| 2.0.1 / 2.5 | MR实现周期 | MR 从提出到开发完成的中位时长，等于分析周期 + 开发周期 |
+| 2.0.2 | RR按期达成率 | 按研发项目统计，分子分母取同一批 RR，避免窗口错位 |
+| 2.1 | MR研发人均交付数 | 年度总体 + 各项目组两个视图 |
+| 2.2 | MR研发人均实现数 | 同上，分母为在册人力 |
+| 2.3 | MR研发人均实现数（实时） | 2025 全年 vs 2026 年 1-10 月同比，并含各项目组 |
+| 2.4 | MR研发人均实现数（中心+外包折算） | 外包按折算系数计入分母，含各项目人力口径子视图 |
+| 2.7 / 2.9 / 2.11 | MR 人均分析 / 开发 / 测试吞吐率 | 各阶段完成数 ÷ 人力 ÷ 月数 |
+| 2.8 / 2.10 / 2.12 | MR 分析 / 开发 / 验收周期 | 阶段配对事实的时间差中位数 |
+
+### 二、过程指标
+
+| 编号 | 指标 | 说明 |
+| --- | --- | --- |
+| 3.1 | 需求分析生成率 | AI 产出的需求分析数 ÷ 分析总数 |
+| 3.2 | 需求方案生成率 | AI 产出的方案数 ÷ 方案总数 |
+| 3.3 | 代码生成率 | AI 生成代码行 ÷ 变更总行 |
+| 3.4 | AI测试用例生成率 | AI 生成用例数 ÷ 用例总数 |
+| 3.5 | AI脚本生成率 | AI 生成脚本数 ÷ 脚本总数 |
+| 3.6 | MR渗透率（累计） | 2026 年累计使用 AI 的 MR 占比 |
+
+### 北极星
+
+| 指标 | 说明 |
 | --- | --- |
-| **流动效率** | 交付前置时间、需求交付周期、部署频率、评审周期、流水线时长、交付吞吐 |
-| **交付质量** | 变更失败率、平均恢复时长、流水线成功率、缺陷逃逸率、代码返工率、评审覆盖率、线上事件数 |
-| **交付过程** | 迭代达成率、人均在制品、技术债投入占比、交付工作项数、活跃人数 |
-| **北极星** | 研发效能指数（6 项加权，权重可调） |
+| 研发提效指数 | 由周期、人均、生成率、渗透率加权归一化合成，权重与目标均在本体中 |
 
 ---
 
@@ -184,8 +212,8 @@ curl -o metrics.csv  "http://127.0.0.1:8765/api/report?format=csv"
 │   ├── seed.py         确定性演示数据
 │   ├── config.py       路径与端口配置
 │   └── web/            前端（原生 JS + 自绘 SVG，无 CDN 依赖）
-├── ontology/ontology.json   本体定义：27 类 / 20 关系 / 11 事实 / 35 指标
-├── tests/              46 个单元与集成测试
+├── ontology/ontology.json   本体定义：28 类 / 14 关系 / 10 事实 / 44 指标
+├── tests/              68 个单元与集成测试
 ├── docs/               架构说明、指标字典
 ├── start.bat           Windows 一键启动
 ├── build_exe.bat       Windows 打包脚本

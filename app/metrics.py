@@ -17,7 +17,9 @@ from typing import Any, Callable, Iterable
 from .ontology import Ontology
 from .store import FactStore
 
-DIM_KEYS = ("team", "project", "repo", "sprint", "env", "worktype", "author", "severity", "status")
+DIM_KEYS = ("center", "projectGroup", "project", "phase", "priority", "source")
+
+MONTH_DAYS = 30.44
 
 
 class MetricError(RuntimeError):
@@ -37,6 +39,8 @@ def parse_dt(value: str) -> datetime:
 def bucket_key(dt: datetime, granularity: str) -> str:
     if granularity == "day":
         return dt.strftime("%Y-%m-%d")
+    if granularity == "year":
+        return dt.strftime("%Y")
     if granularity == "month":
         return dt.strftime("%Y-%m")
     iso = dt.isocalendar()
@@ -44,6 +48,8 @@ def bucket_key(dt: datetime, granularity: str) -> str:
 
 
 def bucket_start(key: str) -> date:
+    if len(key) == 4:
+        return date(int(key), 1, 1)
     if "-W" in key:
         year, week = key.split("-W")
         return date.fromisocalendar(int(year), int(week), 1)
@@ -56,8 +62,15 @@ def window_bounds(granularity: str, periods: int, end: date | None = None) -> tu
     """返回 [start, end) 的日期字符串，覆盖最近 periods 个桶。"""
     end = end or date.today()
     if granularity == "month":
-        start = date(end.year - (periods - 1) // 12, ((end.month - 1 - (periods - 1)) % 12) + 1, 1)
-        stop = date(end.year + (end.month // 12), (end.month % 12) + 1, 1)
+        # 以 end 所在月为最后一桶，向前推 periods-1 个月
+        index = end.year * 12 + (end.month - 1)
+        start_index = index - (periods - 1)
+        start = date(start_index // 12, start_index % 12 + 1, 1)
+        stop_index = index + 1
+        stop = date(stop_index // 12, stop_index % 12 + 1, 1)
+    elif granularity == "year":
+        start = date(end.year - periods + 1, 1, 1)
+        stop = date(end.year + 1, 1, 1)
     elif granularity == "day":
         start, stop = end - timedelta(days=periods), end + timedelta(days=1)
     else:
@@ -106,7 +119,6 @@ class FactIndex:
     facts: list[dict[str, Any]]
     entities: dict[str, dict[str, Any]]
     ancestors: dict[str, list[str]]
-    in_sprint: dict[str, str]
 
     def entity_chain(self, entity_id: str) -> list[str]:
         return self.ancestors.get(entity_id, [entity_id])
@@ -129,17 +141,15 @@ def build_index(store: FactStore, onto: Ontology) -> FactIndex:
             cur = entities.get(cur, {}).get("parent_id")
             guard += 1
         ancestors[eid] = chain
-    in_sprint = {src: dst for rel, src, dst in store.relation_triples("inSprint")}
     facts = store.facts()
     for fact in facts:
-        fact["dims"] = resolve_dims(fact, entities, ancestors, in_sprint, onto)
+        fact["dims"] = resolve_dims(fact, entities, ancestors, onto)
         fact["dt"] = parse_dt(fact["occurred_at"])
-    return FactIndex(facts=facts, entities=entities, ancestors=ancestors, in_sprint=in_sprint)
+    return FactIndex(facts=facts, entities=entities, ancestors=ancestors)
 
 
 def resolve_dims(fact: dict[str, Any], entities: dict[str, dict[str, Any]],
-                 ancestors: dict[str, list[str]], in_sprint: dict[str, str],
-                 onto: Ontology) -> dict[str, Any]:
+                 ancestors: dict[str, list[str]], onto: Ontology) -> dict[str, Any]:
     """把事实映射到分析维度，全部通过本体关系/类归属推理。"""
     dims: dict[str, Any] = {}
     fields = fact["fields"]
@@ -152,38 +162,37 @@ def resolve_dims(fact: dict[str, Any], entities: dict[str, dict[str, Any]],
                 return ent["label"]
         return None
 
-    repo_id = fields.get("repo")
-    if not repo_id and entities.get(subject, {}).get("class_id") == "dev:Repository":
-        repo_id = subject
-    if repo_id:
-        dims["repo"] = entities.get(repo_id, {}).get("label", repo_id)
-        dims["project"] = chain_dim(repo_id, "dev:Project")
-        dims["team"] = chain_dim(repo_id, "dev:Team")
+    # 项目组：主体自身或其父链上的 dev:ProjectGroup
+    group = chain_dim(subject, "dev:ProjectGroup")
+    if group:
+        dims["projectGroup"] = group
+        center = chain_dim(subject, "dev:Center")
+        if center:
+            dims["center"] = center
 
-    if fact["fact_type"].startswith("workitem."):
-        dims["project"] = dims.get("project") or chain_dim(subject, "dev:Project")
-        dims["team"] = dims.get("team") or chain_dim(subject, "dev:Team")
-        sprint_id = in_sprint.get(subject)
-        if sprint_id:
-            dims["sprint"] = entities.get(sprint_id, {}).get("label", sprint_id)
-            dims["team"] = dims.get("team") or chain_dim(sprint_id, "dev:Team")
-            dims["project"] = dims.get("project") or chain_dim(sprint_id, "dev:Project")
+    # 研发项目：字段优先，其次主体父链
+    project = fields.get("project")
+    if project:
+        ent = entities.get(project) or entities.get(f"project:{project}")
+        dims["project"] = ent["label"] if ent else project
+        if ent:
+            gid = chain_dim(ent["id"], "dev:ProjectGroup")
+            if gid:
+                dims["projectGroup"] = dims.get("projectGroup") or gid
+                cid = chain_dim(ent["id"], "dev:Center")
+                if cid:
+                    dims["center"] = dims.get("center") or cid
+    elif chain_dim(subject, "dev:Project"):
+        dims["project"] = chain_dim(subject, "dev:Project")
 
-    if fact["fact_type"] == "sprint.completed":
-        dims["sprint"] = entities.get(subject, {}).get("label", subject)
-        dims["team"] = dims.get("team") or chain_dim(subject, "dev:Team")
-        dims["project"] = dims.get("project") or chain_dim(subject, "dev:Project")
+    for key in ("phase", "priority", "source"):
+        value = fields.get(key)
+        if value is None:
+            spec = onto.fact_type(fact["fact_type"])
+            value = getattr(spec, "phase", None) if spec else None
+        if value is not None:
+            dims[key] = value
 
-    if fact["fact_type"] == "review.submitted" and fields.get("pr"):
-        dims["repo"] = dims.get("repo") or entities.get(fields["pr"], {}).get("attrs", {}).get("repo_label")
-
-    for key in ("env", "author", "severity", "status", "priority", "verdict"):
-        if fields.get(key) is not None:
-            dims[key] = fields[key]
-
-    worktype = onto.worktype_of(fact["subject_class"])
-    if worktype:
-        dims["worktype"] = worktype
     return {k: v for k, v in dims.items() if v is not None}
 
 
@@ -230,6 +239,8 @@ def aggregate(values: list[float], agg: str) -> float | None:
         return float(min(values))
     if agg == "max":
         return float(max(values))
+    if agg == "last":
+        return float(values[-1])
     if agg == "p90":
         ordered = sorted(values)
         idx = max(0, min(len(ordered) - 1, math.ceil(0.9 * len(ordered)) - 1))
@@ -279,10 +290,9 @@ class MetricsEngine:
                 granularity: str, periods: int) -> tuple[str, str]:
         if start and end:
             return start, end
-        if index.facts:
-            latest = max(f["dt"] for f in index.facts).date()
-        else:
-            latest = date.today()
+        # 以数据末期为锚点，避免默认窗口落到无数据的未来区间
+        latest = max((f["dt"] for f in index.facts), default=None)
+        latest = latest.date() if latest else date.today()
         default_start, default_end = window_bounds(granularity, periods, latest)
         return start or default_start, end or default_end
 
@@ -322,9 +332,11 @@ class MetricsEngine:
                        granularity: str,
                        history: list[dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
         grid = _bucket_grid(start, end, granularity)
+        span_days = max((date.fromisoformat(end) - date.fromisoformat(start)).days, 1)
+        months = span_days / MONTH_DAYS
         atomic = self._atomic_values(facts, start, end, granularity, grid,
                                      history if history is not None else facts)
-        return self._resolve_all(atomic, facts, grid, granularity)
+        return self._resolve_all(atomic, facts, grid, granularity, months)
 
     def _atomic_values(self, facts: list[dict[str, Any]], start: str, end: str,
                        granularity: str, grid: list[str],
@@ -346,6 +358,17 @@ class MetricsEngine:
                     if match_filter(metric.get("filter"), f, self.onto)]
             agg = metric["agg"]
             measure = metric.get("measure")
+            if agg == "snapshot":
+                out[metric["id"]] = _snapshot_values(
+                    rows, grid, granularity, measure, history, start,
+                    metric.get("snapshotCombine", "sum"))
+                continue
+            if metric.get("carry") and not rows:
+                # 人力快照是低频事实，窗口内可能没有新快照，沿用最近一次
+                prior = [f for f in history if f["fact_type"] == metric["fact"]
+                         and f["occurred_at"] < start]
+                if prior:
+                    rows = [max(prior, key=lambda f: f["occurred_at"])]
             if agg == "distinct":
                 # 去重计数需要按时间桶分别去重，不能先拍平再聚合
                 per_bucket: dict[str, set] = defaultdict(set)
@@ -355,7 +378,7 @@ class MetricsEngine:
                         per_bucket[bucket_key(f["dt"], granularity)].add(key)
                 seen_all = set().union(*per_bucket.values()) if per_bucket else set()
                 per_week = (metric.get("normalize") or {}).get("per") == "week"
-                bucket_weeks = {"week": 1.0, "month": 4.345, "day": 1 / 7}[granularity]
+                bucket_weeks = {"week": 1.0, "month": 4.345, "day": 1 / 7, "year": 52.14}[granularity]
                 total = float(len(seen_all))
                 series_out: dict[str, float | None] = {k: None for k in grid}
                 for key, members in per_bucket.items():
@@ -386,8 +409,11 @@ class MetricsEngine:
             series: dict[str, list[float]] = defaultdict(list)
             for fact, val in zip(rows, samples):
                 series[bucket_key(fact["dt"], granularity)].append(val)
+            if metric.get("carry") and not series and samples:
+                # 结转指标在窗口内每个桶都沿用同一快照值
+                series = {k: list(samples) for k in grid}
             per_week = (metric.get("normalize") or {}).get("per") == "week"
-            bucket_weeks = {"week": 1.0, "month": 4.345, "day": 1 / 7}[granularity]
+            bucket_weeks = {"week": 1.0, "month": 4.345, "day": 1 / 7, "year": 52.14}[granularity]
             total = aggregate(samples, "count" if agg == "distinct" else agg)
             series_out: dict[str, float | None] = {k: None for k in grid}
             for key, vals in series.items():
@@ -412,14 +438,27 @@ class MetricsEngine:
                      history: list[dict[str, Any]]) -> dict[str, Any]:
         """成对事实指标：按 joinOn 键把起点事实与终点事实配对，计算时长。
 
-        这正是本体驱动的价值：workitem.created 与 workitem.closed 是两类事实，
-        通过『同一主体』这一本体关系连接后才可计算周期。
+        这正是本体驱动的价值：如 mr.created 与 mr.dev.done 是两类事实，
+        通过『同一主体（同一 MR）』这一本体关系连接后才可计算周期。
         """
-        starts = {f["subject_id"]: f for f in history if f["fact_type"] == metric["startFact"]}
-        ends = [f for f in facts if f["fact_type"] == metric["endFact"]]
+        # 同一 MR 可能多次进入同一阶段（返工），取最早起点与最早终点，避免重复计数
+        starts: dict[str, dict[str, Any]] = {}
+        for fact in history:
+            if fact["fact_type"] != metric["startFact"]:
+                continue
+            cur = starts.get(fact["subject_id"])
+            if cur is None or fact["dt"] < cur["dt"]:
+                starts[fact["subject_id"]] = fact
+        ends: dict[str, dict[str, Any]] = {}
+        for fact in facts:
+            if fact["fact_type"] != metric["endFact"]:
+                continue
+            cur = ends.get(fact["subject_id"])
+            if cur is None or fact["dt"] < cur["dt"]:
+                ends[fact["subject_id"]] = fact
         samples, series = [], defaultdict(list)
-        for end in ends:
-            start = starts.get(end["subject_id"])
+        for subject, end in ends.items():
+            start = starts.get(subject)
             if not start:
                 continue
             hours = (end["dt"] - start["dt"]).total_seconds() / 3600
@@ -439,7 +478,7 @@ class MetricsEngine:
         }
 
     def _resolve_all(self, atomic: dict[str, dict[str, Any]], facts: list[dict[str, Any]],
-                     grid: list[str], granularity: str) -> dict[str, dict[str, Any]]:
+                     grid: list[str], granularity: str, months: float = 1.0) -> dict[str, dict[str, Any]]:
         values: dict[str, dict[str, Any]] = dict(atomic)
         pending = [m for m in self.onto.metrics if m.get("type") not in {"atomic", "pair"}]
         order = self._topo_order(pending)
@@ -447,11 +486,14 @@ class MetricsEngine:
         for metric in order:
             mid = metric["id"]
             deps = metric.get("deps", [])
-            total = self._eval_metric(metric, {d: values[d]["total"] for d in deps if d in values})
+            total = self._eval_metric(
+                metric, {d: values[d]["total"] for d in deps if d in values}, months)
             series = {}
+            bucket_months = months / max(len(buckets), 1)
             for bucket in buckets:
                 series[bucket] = self._eval_metric(
-                    metric, {d: values[d]["series"].get(bucket) for d in deps if d in values})
+                    metric, {d: values[d]["series"].get(bucket) for d in deps if d in values},
+                    bucket_months)
             values[mid] = {"total": total, "series": series, "samples": [], "count": None}
         return values
 
@@ -475,10 +517,11 @@ class MetricsEngine:
             visit(mid)
         return ordered
 
-    def _eval_metric(self, metric: dict[str, Any], deps: dict[str, float | None]) -> float | None:
+    def _eval_metric(self, metric: dict[str, Any], deps: dict[str, float | None],
+                     months: float = 1.0) -> float | None:
         mtype = metric.get("type")
         if mtype == "derived":
-            return safe_eval(metric["expr"], deps)
+            return safe_eval(metric["expr"], {**deps, "months": max(months, 1e-9)})
         if mtype == "composite":
             components = metric.get("scoring", {}).get("components", [])
             if not components:
@@ -509,6 +552,7 @@ class MetricsEngine:
             delta = (value - prev_total) / abs(prev_total) * 100
         return {
             "id": metric_id,
+            "code": metric.get("code"),
             "label": metric.get("label", metric_id),
             "unit": metric.get("unit", ""),
             "type": metric.get("type"),
@@ -531,6 +575,55 @@ class MetricsEngine:
             "samples": len(raw.get("samples") or []),
         }
 
+    def compare(self, metric_ids: Iterable[str] | None = None,
+                base: tuple[str, str] | None = None,
+                current: tuple[str, str] | None = None,
+                filters: dict[str, Any] | None = None) -> dict[str, Any]:
+        """两段等口径区间对比，用于"2025 全年 vs 2026 年 1-10 月"这类同比。
+
+        两段区间各自独立计算（含各自的前序窗口），因此人均类指标的分母
+        与周期类指标的配对都能取到正确取值。
+        """
+        index = self.index()
+        latest = max((f["dt"] for f in index.facts), default=None)
+        latest = latest.date() if latest else date.today()
+        base = base or (date(latest.year - 1, 1, 1).isoformat(),
+                        date(latest.year - 1, 12, 31).isoformat())
+        current = current or (date(latest.year, 1, 1).isoformat(), latest.isoformat())
+        wanted = list(metric_ids) if metric_ids else [
+            m["id"] for m in self.onto.metrics if not m.get("hidden")]
+
+        def window(bounds: tuple[str, str]) -> dict[str, dict[str, Any]]:
+            start, end = bounds
+            stop = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
+            scoped = self._scope(index, start, stop, filters)
+            values = self._window_values(scoped, start, stop, "month",
+                                         self._scope(index, None, stop, filters))
+            return values
+
+        base_values = window(base)
+        current_values = window(current)
+        items = []
+        for mid in wanted:
+            if mid not in base_values or mid not in current_values:
+                continue
+            metric = self.onto.metric(mid) or {}
+            b = base_values[mid].get("total")
+            c = current_values[mid].get("total")
+            change = ((c - b) / abs(b) * 100) if (b not in (None, 0) and c is not None) else None
+            items.append({
+                "id": mid, "code": metric.get("code"), "label": metric.get("label", mid),
+                "unit": metric.get("unit", ""), "layer": metric.get("layer"),
+                "direction": metric.get("direction", "up"),
+                "target": metric.get("target"),
+                "base": _round(b, metric.get("precision", 2)),
+                "current": _round(c, metric.get("precision", 2)),
+                "change": _round(change, 1),
+            })
+        return {"base": {"start": base[0], "end": base[1]},
+                "current": {"start": current[0], "end": current[1]},
+                "items": items}
+
     # ---------- 分析能力 ----------
     def trend(self, metric_id: str, granularity: str = "week", periods: int = 12,
               filters: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -545,7 +638,7 @@ class MetricsEngine:
             "window": result["window"],
         }
 
-    def breakdown(self, metric_id: str, dimension: str = "team", granularity: str = "week",
+    def breakdown(self, metric_id: str, dimension: str = "projectGroup", granularity: str = "week",
                   periods: int = 12) -> dict[str, Any]:
         index = self.index()
         start, end = self._bounds(index, None, None, granularity, periods)
@@ -614,9 +707,9 @@ class MetricsEngine:
                     out.append({"level": "warning", "metric": mid,
                                 "title": f"{m['label']} 环比{trend} {abs(m['delta'])}%，方向不利",
                                 "detail": f"上一周期为 {m['previous']}{m['unit']}，当前 {m['value']}{m['unit']}。"
-                                          f"该指标越低越好，建议下钻到团队维度定位原因。" if m["direction"] == "down"
+                                          f"该指标越低越好，建议下钻到项目组维度定位原因。" if m["direction"] == "down"
                                           else f"上一周期为 {m['previous']}{m['unit']}，当前 {m['value']}{m['unit']}。"
-                                               f"该指标越高越好，建议下钻到团队维度定位原因。"})
+                                               f"该指标越高越好，建议下钻到项目组维度定位原因。"})
         order = {"critical": 0, "warning": 1, "info": 2}
         out.sort(key=lambda x: order.get(x["level"], 3))
         return out[:12]
@@ -679,16 +772,22 @@ class MetricsEngine:
                 elif isinstance(val, (int, float)) and val < 0:
                     issues.append({"severity": "high", "type": "度量取值为负",
                                    "subject": fact["subject_id"], "detail": f"{measure}={val}"})
-            if not fact["dims"].get("team"):
+            if not fact["dims"].get("projectGroup"):
                 issues.append({"severity": "medium", "type": "维度缺失",
-                               "subject": fact["subject_id"], "detail": "无法推理出所属团队"})
+                               "subject": fact["subject_id"], "detail": "无法推理出所属项目组"})
 
         for subject, group in by_subject.items():
-            created = [f for f in group if f["fact_type"] == "workitem.created"]
-            closed = [f for f in group if f["fact_type"] == "workitem.closed"]
-            if created and closed and min(f["occurred_at"] for f in closed) < min(f["occurred_at"] for f in created):
-                issues.append({"severity": "high", "type": "时序倒置", "subject": subject,
-                               "detail": "关闭时间早于创建时间"})
+            created = [f for f in group if f["fact_type"] == "mr.created"]
+            if not created:
+                continue
+            origin = min(f["occurred_at"] for f in created)
+            for fact in group:
+                if fact["fact_type"] in ("mr.created", "headcount.snapshot", "rr.planned"):
+                    continue
+                if fact["occurred_at"] < origin:
+                    issues.append({"severity": "high", "type": "时序倒置",
+                                   "subject": subject,
+                                   "detail": f"{fact['fact_type']} 早于 MR 创建时间"})
 
         total_checks = max(len(facts) * 3, 1)
         penalty = sum({"high": 3, "medium": 2, "low": 1}[i["severity"]] for i in issues)
@@ -745,13 +844,61 @@ def _bucket_grid(start: str, end: str, granularity: str) -> list[str]:
     grid: list[str] = []
     cur = bucket_start(bucket_key(parse_dt(start), granularity))
     stop = date.fromisoformat(end)
-    step = {"day": timedelta(days=1), "week": timedelta(weeks=1), "month": timedelta(days=28)}[granularity]
+    step = {"day": timedelta(days=1), "week": timedelta(weeks=1),
+            "month": timedelta(days=28), "year": timedelta(days=365)}[granularity]
     guard = 0
     while cur < stop and guard < 2000:
         grid.append(bucket_key(datetime(cur.year, cur.month, cur.day), granularity))
         cur = cur + step
         guard += 1
     return list(dict.fromkeys(grid))
+
+
+def _snapshot_values(rows: list[dict[str, Any]], grid: list[str], granularity: str,
+                     measure: str | None, history: list[dict[str, Any]],
+                     start: str, combine: str = "sum") -> dict[str, Any]:
+    """快照聚合：桶内取每个主体最新值后求和，再对桶取平均。
+
+    人力这类指标不能把各项目组的平均值再平均（会低估总人力），
+    也不能把多个月份的快照相加（会高估），必须在"主体维度求和、时间维度取均值"。
+    """
+    def bucket_totals(facts: list[dict[str, Any]]) -> dict[str, float]:
+        latest: dict[tuple[str, str], dict[str, Any]] = {}
+        for fact in facts:
+            value = fact["measures"].get(measure) if measure else None
+            if not isinstance(value, (int, float)):
+                continue
+            key = (bucket_key(fact["dt"], granularity), fact["subject_id"])
+            cur = latest.get(key)
+            if cur is None or fact["dt"] > cur["dt"]:
+                latest[key] = fact
+        grouped: dict[str, list[float]] = defaultdict(list)
+        for (bucket, _), fact in latest.items():
+            grouped[bucket].append(float(fact["measures"][measure]))
+        if combine == "avg":
+            return {k: sum(v) / len(v) for k, v in grouped.items()}
+        return {k: sum(v) for k, v in grouped.items()}
+
+    in_window = bucket_totals(rows)
+    series: dict[str, float | None] = {k: in_window.get(k) for k in grid}
+    # 窗口内某桶无新快照时，沿用该桶之前最近一次的全量快照
+    if history:
+        prior = bucket_totals([f for f in history if f["occurred_at"] < start])
+        if prior:
+            last_bucket = max(prior)
+            filled: dict[str, float | None] = {}
+            for key in grid:
+                filled[key] = in_window.get(key)
+                if filled[key] is None and key >= last_bucket:
+                    filled[key] = prior[last_bucket]
+            series = filled
+    present = [v for v in series.values() if v is not None]
+    return {
+        "total": float(sum(present) / len(present)) if present else None,
+        "series": series,
+        "samples": present,
+        "count": len(rows),
+    }
 
 
 def _forward_fill(series: dict[str, float | None], grid: list[str],

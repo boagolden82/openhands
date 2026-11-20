@@ -28,10 +28,11 @@ def build_report(ctx, fmt: str, granularity: str, periods: int) -> tuple[bytes, 
         return buf.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8", f"rde-metrics-{stamp}.csv"
 
     insights = ctx.engine.insights(granularity, periods)
-    teams = ctx.engine.breakdown("dev_eff_index", "team", granularity, periods)["items"]
+    groups = ctx.engine.breakdown("rde_index", "projectGroup", granularity, periods)["items"]
+    compare = ctx.engine.compare()
     indicator = next((m for m in result["metrics"].values() if m["indicator"]), None)
     rows = "".join(
-        f"<tr><td>{escape(m['label'])}</td><td class='num'>{m['value'] if m['value'] is not None else '—'}"
+        f"<tr><td class='muted'>{escape(m['code'] or '')}</td><td>{escape(m['label'])}</td><td class='num'>{m['value'] if m['value'] is not None else '—'}"
         f"<span class='unit'>{escape(m['unit'])}</span></td>"
         f"<td class='num'>{m['target'] if m['target'] is not None else '—'}</td>"
         f"<td><span class='pill {m['status']}'>{'达标' if m['status'] == 'ok' else '未达标' if m['status'] == 'off' else '无数据'}</span></td>"
@@ -43,9 +44,16 @@ def build_report(ctx, fmt: str, granularity: str, periods: int) -> tuple[bytes, 
         f"<li class='{i['level']}'><strong>{escape(i['title'])}</strong><br>{escape(i['detail'])}</li>"
         for i in insights
     )
-    team_html = "".join(
+    group_html = "".join(
         f"<tr><td>{escape(t['member'])}</td><td class='num'>{t['value'] if t['value'] is not None else '—'}</td></tr>"
-        for t in teams
+        for t in groups
+    )
+    compare_html = "".join(
+        f"<tr><td>{escape(i['code'] or '')}</td><td>{escape(i['label'])}</td>"
+        f"<td class='num'>{i['base'] if i['base'] is not None else '—'}<span class='unit'>{escape(i['unit'])}</span></td>"
+        f"<td class='num'>{i['current'] if i['current'] is not None else '—'}<span class='unit'>{escape(i['unit'])}</span></td>"
+        f"<td class='num'>{i['change'] if i['change'] is not None else '—'}</td></tr>"
+        for i in compare["items"] if not i.get("hidden")
     )
     html = f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
@@ -80,7 +88,7 @@ footer{{margin-top:36px;color:var(--muted);font-size:12px}}
 <div class="sub">本体版本 {escape(ctx.onto.version)} · 统计窗口 {result['window']['start']} ~ {result['window']['end']} ·
 粒度 {escape(granularity)} · 生成时间 {stamp}</div>
 <div class="cards">
-  <div class="card"><div class="k">研发效能指数</div>
+  <div class="card"><div class="k">研发提效指数</div>
     <div class="v">{indicator['value'] if indicator and indicator['value'] is not None else '—'}<span class="unit">分</span></div></div>
   <div class="card"><div class="k">纳入指标</div>
     <div class="v">{sum(1 for m in result['metrics'].values() if not m['hidden'])}</div></div>
@@ -91,10 +99,14 @@ footer{{margin-top:36px;color:var(--muted);font-size:12px}}
 </div>
 <h2>关键发现</h2>
 <ul class="insights">{insight_html or '<li>本期无异常。</li>'}</ul>
-<h2>团队效能对比</h2>
-<table><thead><tr><th>团队</th><th class="num">效能指数</th></tr></thead><tbody>{team_html}</tbody></table>
+<h2>项目组效能对比</h2>
+<table><thead><tr><th>项目组</th><th class="num">提效指数</th></tr></thead><tbody>{group_html}</tbody></table>
+<h2>同比对比（{escape(compare['base']['start'])} ~ {escape(compare['base']['end'])} vs
+{escape(compare['current']['start'])} ~ {escape(compare['current']['end'])}）</h2>
+<table><thead><tr><th>编号</th><th>指标</th><th class="num">基期</th>
+<th class="num">当期</th><th class="num">变化%</th></tr></thead><tbody>{compare_html}</tbody></table>
 <h2>指标明细</h2>
-<table><thead><tr><th>指标</th><th class="num">当前值</th><th class="num">目标</th>
+<table><thead><tr><th>编号</th><th>指标</th><th class="num">当前值</th><th class="num">目标</th>
 <th>状态</th><th class="num">环比%</th><th>负责人</th></tr></thead><tbody>{rows}</tbody></table>
 <footer>由 RDE-Onto 研发效能指标体系自动生成 · 指标口径来源于本体文件 ontology.json，可自行扩展。</footer>
 </body></html>"""

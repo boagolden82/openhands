@@ -50,6 +50,7 @@ class FactType:
     measures: tuple[str, ...] = ()
     fields: tuple[str, ...] = ()
     description: str = ""
+    phase: str | None = None
 
 
 @dataclass
@@ -81,6 +82,7 @@ class Ontology:
                 id=f["id"], label=f["label"], subject=f["subject"],
                 time_field=f["timeField"], measures=tuple(f.get("measures", [])),
                 fields=tuple(f.get("fields", [])), description=f.get("description", ""),
+                phase=f.get("phase"),
             ) for f in raw.get("factTypes", [])},
             metrics=raw.get("metrics", []),
         )
@@ -249,6 +251,7 @@ class Ontology:
                     "id": f.id, "label": f.label, "subject": f.subject,
                     "timeField": f.time_field, "measures": list(f.measures),
                     "fields": list(f.fields), "description": f.description,
+                    "phase": f.phase,
                 }
                 for f in self.fact_types.values()
             ],

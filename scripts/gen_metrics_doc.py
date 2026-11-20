@@ -9,9 +9,18 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LAYER_CN = {"flow": "流动效率", "quality": "交付质量", "delivery": "交付过程", "value": "价值交付"}
+LAYER_CN = {"detail": "指标明细", "process": "过程指标", "base": "内部口径"}
 TYPE_CN = {"atomic": "原子指标", "derived": "派生指标", "composite": "复合指标", "pair": "配对指标"}
-ORDER = ["flow", "quality", "delivery"]
+ORDER = ["detail", "process", "base"]
+
+
+def code_key(metric: dict) -> tuple:
+    """按需求清单编号排序：2.0.1 → 2.1 → 2.10 → 3.1。"""
+    code = (metric.get("code") or "").split(" / ")[0]
+    parts = []
+    for chunk in code.split("."):
+        parts.append(int(chunk) if chunk.isdigit() else 99)
+    return (parts, metric["id"])
 
 
 def direction_cn(metric: dict) -> str:
@@ -33,14 +42,14 @@ def main() -> int:
         "",
         "## 汇总",
         "",
-        "| 指标 | ID | 类型 | 层级 | 单位 | 目标 | 方向 | 负责人 |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| 编号 | 指标 | ID | 类型 | 单位 | 目标 | 方向 |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for metric in sorted(visible, key=lambda m: (layer_rank.get(m.get("layer"), 9), m["id"])):
+    for metric in sorted(visible, key=lambda m: (layer_rank.get(m.get("layer"), 9), code_key(m))):
         lines.append(
-            f"| {metric['label']} | `{metric['id']}` | {TYPE_CN.get(metric['type'], metric['type'])} | "
-            f"{LAYER_CN.get(metric.get('layer'), '—')} | {metric.get('unit', '')} | "
-            f"{metric.get('target', '—')} | {direction_cn(metric)} | {metric.get('owner', '—')} |"
+            f"| {metric.get('code') or '—'} | {metric['label']} | `{metric['id']}` | "
+            f"{TYPE_CN.get(metric['type'], metric['type'])} | "
+            f"{metric.get('unit', '')} | {metric.get('target', '—')} | {direction_cn(metric)} |"
         )
 
     lines += ["", "## 详细口径", ""]
@@ -49,9 +58,11 @@ def main() -> int:
         if not items:
             continue
         lines += [f"### {LAYER_CN[layer]}", ""]
-        for metric in sorted(items, key=lambda m: m["id"]):
-            lines += [f"#### {metric['label']}", "", metric.get("description", ""), "",
+        for metric in sorted(items, key=code_key):
+            title = f"{metric['code']} {metric['label']}" if metric.get("code") else metric["label"]
+            lines += [f"#### {title}", "", metric.get("description", ""), "",
                       "| 项 | 值 |", "| --- | --- |",
+                      f"| 指标编号 | {metric.get('code') or '—'} |",
                       f"| 指标 ID | `{metric['id']}` |",
                       f"| 类型 | {TYPE_CN.get(metric['type'], metric['type'])} |",
                       f"| 单位 | {metric.get('unit', '—')} |",
@@ -77,7 +88,7 @@ def main() -> int:
             lines += [f"| 负责人 | {metric.get('owner', '—')} |", ""]
 
     if hidden:
-        lines += ["## 内部指标（不作为 KPI 展示）", "",
+        lines += ["## 内部口径指标（不作为 KPI 展示）", "",
                   "以下指标作为其他指标的分子/分母存在，只在详情页与血缘图中可见。", "",
                   "| 指标 | ID | 用途 |", "| --- | --- | --- |"]
         for metric in sorted(hidden, key=lambda m: m["id"]):

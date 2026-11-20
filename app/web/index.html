@@ -68,16 +68,16 @@
       </div>
       <div class="toolbar">
         <div class="seg" id="granularity">
-          <button data-g="week" class="active">周</button>
-          <button data-g="month">月</button>
-          <button data-g="day">日</button>
+          <button data-g="week">周</button>
+          <button data-g="month" class="active">月</button>
+          <button data-g="year">年</button>
         </div>
         <select id="periods" title="统计窗口">
           <option value="8">近 8 期</option>
           <option value="12" selected>近 12 期</option>
           <option value="26">近 26 期</option>
         </select>
-        <select id="team-filter" title="团队筛选"><option value="">全部团队</option></select>
+        <select id="group-filter" title="项目组筛选"><option value="">全部项目组</option></select>
         <button class="btn" id="export-report">
           <svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zM5 18h14v2H5z"/></svg>
           导出报告
@@ -97,9 +97,13 @@
           <div id="trend-chart" class="chart-lg"></div>
         </div>
         <div class="card">
-          <div class="card-head"><h2>团队效能对比</h2><span class="hint">研发效能指数</span></div>
-          <div id="team-bars"></div>
+          <div class="card-head"><h2>项目组效能对比</h2><span class="hint">研发提效指数</span></div>
+          <div id="group-bars"></div>
         </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>同比对比</h2><span class="hint" id="compare-range">—</span></div>
+        <div id="compare-body" class="compare-body"></div>
       </div>
       <div class="grid two-col">
         <div class="card">

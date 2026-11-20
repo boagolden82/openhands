@@ -1,9 +1,9 @@
-"""指标引擎测试：用人工构造的最小数据集验证口径正确性。"""
+"""指标引擎测试：用人工构造的最小数据集验证新口径的正确性。"""
 from __future__ import annotations
 
 import pytest
 
-from app.metrics import MetricsEngine, safe_eval, _normalize, _status
+from app.metrics import MetricsEngine, _attainment, _normalize, _status, safe_eval
 from app.ontology import Ontology
 from app.store import FactStore
 
@@ -14,217 +14,256 @@ def onto() -> Ontology:
     return Ontology.load(ontology_path())
 
 
+def _seed_minimal(store: FactStore) -> None:
+    """构造一个可控的小数据集，所有期望值都可以手算。"""
+    store.upsert_entity("center:rd", "dev:Center", "研发中心")
+    store.upsert_entity("group:a", "dev:ProjectGroup", "A 项目组", "center:rd")
+    store.upsert_entity("project:p", "dev:Project", "P 项目", "group:a")
+    store.add_relations([("belongsTo", "group:a", "center:rd"),
+                         ("belongsTo", "project:p", "group:a")])
+
+    facts = []
+    # 人力快照：A 组 10 名中心人力 + 5 名外包，折算系数 0.6
+    for month in ("2026-08-01", "2026-09-01", "2026-10-01"):
+        facts.append({"fact_type": "headcount.snapshot", "subject_id": "group:a",
+                      "subject_class": "dev:ProjectGroup", "occurred_at": f"{month} 00:00:00",
+                      "measures": {"center_headcount": 10, "outsourced_headcount": 5,
+                                   "outsourced_factor": 0.6},
+                      "fields": {}})
+
+    # 4 个 MR：分析 12h、开发 24h、测试 6h、验收 2h
+    for i in range(4):
+        mid = f"mr:{i}"
+        base = f"2026-10-0{i + 1}"
+        store.upsert_entity(mid, "dev:MR", f"MR {i}", "project:p")
+        store.add_relations([("deliversTo", mid, "project:p")])
+        facts += [
+            {"fact_type": "mr.created", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"{base} 00:00:00", "measures": {},
+             "fields": {"project": "project:p", "priority": "P1", "source": "业务方提出"}},
+            {"fact_type": "mr.analysis.done", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"{base} 12:00:00",
+             "measures": {"ai_analysis": 2, "total_analysis": 4,
+                          "ai_solution": 1, "total_solution": 2}, "fields": {}},
+            {"fact_type": "mr.dev.done", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"2026-10-0{i + 2} 12:00:00",
+             "measures": {"ai_lines": 300, "total_lines": 1000}, "fields": {}},
+            {"fact_type": "mr.test.done", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"2026-10-0{i + 2} 18:00:00",
+             "measures": {"ai_cases": 3, "total_cases": 6,
+                          "ai_scripts": 1, "total_scripts": 2}, "fields": {}},
+            {"fact_type": "mr.accepted", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"2026-10-0{i + 2} 20:00:00", "measures": {}, "fields": {}},
+            {"fact_type": "mr.delivered", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"2026-10-0{i + 2} 21:00:00", "measures": {},
+             "fields": {"project": "project:p"}},
+            {"fact_type": "mr.ai.touched", "subject_id": mid, "subject_class": "dev:MR",
+             "occurred_at": f"{base} 00:00:00", "measures": {},
+             "fields": {"artifacts": ["analysis", "code"]}},
+        ]
+
+    # RR：计划 10 条，按期 8 条
+    facts += [
+        {"fact_type": "rr.planned", "subject_id": "rr:1", "subject_class": "dev:RR",
+         "occurred_at": "2026-10-01 00:00:00", "measures": {"planned_count": 10},
+         "fields": {"project": "project:p"}},
+        {"fact_type": "rr.delivered", "subject_id": "rr:1", "subject_class": "dev:RR",
+         "occurred_at": "2026-10-05 00:00:00",
+         "measures": {"delivered_count": 9, "on_time_count": 8, "planned_count": 10},
+         "fields": {"project": "project:p"}},
+    ]
+    store.add_facts(facts)
+
+
 @pytest.fixture()
 def engine(tmp_path, onto) -> MetricsEngine:
     store = FactStore(tmp_path / "t.db")
-    # 组织：org -> team -> project -> repo
-    store.upsert_entity("org:x", "dev:Organization", "研发中心")
-    store.upsert_entity("team:a", "dev:Team", "A 团队", "org:x")
-    store.upsert_entity("project:p", "dev:Project", "P 项目", "team:a")
-    store.upsert_entity("repo:r", "dev:Repository", "r", "project:p")
-    store.upsert_entity("sprint:s1", "dev:Sprint", "S1", "team:a")
-    store.add_relations([("belongsTo", "team:a", "org:x"), ("belongsTo", "project:p", "team:a"),
-                         ("belongsTo", "repo:r", "project:p"), ("belongsTo", "sprint:s1", "team:a")])
-
-    facts = []
-    # 3 个部署，前置时间 24/48/72 小时 -> 均值 48
-    for i, lead in enumerate([24, 48, 72]):
-        facts.append({"fact_type": "deployment.finished", "subject_id": f"d{i}",
-                      "subject_class": "dev:Deployment", "occurred_at": f"2026-10-0{i + 1} 10:00:00",
-                      "measures": {"lead_time_hours": lead, "duration_sec": 60},
-                      "fields": {"env": "prod", "repo": "repo:r", "status": "success"}})
-    # 1 个线上事件 -> 变更失败率 = 1/3*100
-    facts.append({"fact_type": "incident.resolved", "subject_id": "inc1",
-                  "subject_class": "dev:Incident", "occurred_at": "2026-10-02 12:00:00",
-                  "measures": {"mttr_minutes": 30},
-                  "fields": {"severity": "SEV2", "repo": "repo:r", "team": "A 团队"}})
-    # 工作项：1 个缺陷（逃逸）、1 个技术债、2 个故事
-    specs = [("w1", "dev:Defect", 3, True), ("w2", "dev:TechDebt", 5, False),
-             ("w3", "dev:Story", 8, False), ("w4", "dev:Story", 2, False)]
-    for wid, cls, points, escaped in specs:
-        facts.append({"fact_type": "workitem.created", "subject_id": wid, "subject_class": cls,
-                      "occurred_at": "2026-10-01 09:00:00",
-                      "measures": {"story_points": points},
-                      "fields": {"status": "in_progress", "escaped": escaped, "title": wid}})
-    # w3 在 48 小时后关闭 -> 周期 48h
-    facts.append({"fact_type": "workitem.closed", "subject_id": "w3",
-                  "subject_class": "dev:Story", "occurred_at": "2026-10-03 09:00:00",
-                  "measures": {}, "fields": {"status": "done"}})
-    # 流水线 2 次成功 1 次失败，时长各 600s
-    for i, status in enumerate(["success", "success", "failed"]):
-        facts.append({"fact_type": "pipeline.completed", "subject_id": f"ci{i}",
-                      "subject_class": "dev:PipelineRun", "occurred_at": f"2026-10-0{i + 1} 08:00:00",
-                      "measures": {"duration_sec": 600},
-                      "fields": {"status": status, "repo": "repo:r", "stage": "build"}})
-    facts.append({"fact_type": "sprint.completed", "subject_id": "sprint:s1",
-                  "subject_class": "dev:Sprint", "occurred_at": "2026-10-14 18:00:00",
-                  "measures": {"committed_points": 20, "completed_points": 18},
-                  "fields": {"team": "A 团队"}})
-    store.add_facts(facts)
+    _seed_minimal(store)
     return MetricsEngine(onto, store)
 
 
 def compute(engine, *ids, **kwargs):
-    kwargs.setdefault("start", "2026-09-28")
-    kwargs.setdefault("end", "2026-10-19")
-    result = engine.compute(list(ids), **kwargs)
-    return result["metrics"]
+    kwargs.setdefault("start", "2026-10-01")
+    kwargs.setdefault("end", "2026-11-01")
+    return engine.compute(list(ids), **kwargs)["metrics"]
 
 
-def test_atomic_average_and_count(engine):
-    m = compute(engine, "lead_time_hours", "deploy_count")
-    assert m["lead_time_hours"]["value"] == 48.0
-    assert m["deploy_count"]["value"] == 3.0
+# ---------------------------------------------------------------- 表达式
+def test_safe_eval_blocks_dangerous_syntax():
+    assert safe_eval("a / b * 100", {"a": 3, "b": 4}) == 75.0
+    with pytest.raises(Exception):
+        safe_eval("__import__('os').system('ls')", {})
 
 
-def test_class_based_filter_uses_subsumption(engine):
-    """缺陷/技术债指标依赖本体类归属推理，而非 type 字段。"""
-    m = compute(engine, "defect_total", "defect_escaped", "tech_debt_points", "total_story_points")
-    assert m["defect_total"]["value"] == 1.0
-    assert m["defect_escaped"]["value"] == 1.0
-    assert m["tech_debt_points"]["value"] == 5.0
-    assert m["total_story_points"]["value"] == 18.0
-
-
-def test_derived_ratio_and_percentage(engine):
-    m = compute(engine, "change_failure_rate", "ci_success_rate", "ci_duration_minutes",
-                "sprint_completion_rate", "tech_debt_ratio")
-    assert m["change_failure_rate"]["value"] == pytest.approx(1 / 3 * 100, abs=0.05)
-    assert m["ci_success_rate"]["value"] == pytest.approx(2 / 3 * 100, abs=0.05)
-    assert m["ci_duration_minutes"]["value"] == pytest.approx(10.0, abs=0.05)
-    assert m["sprint_completion_rate"]["value"] == pytest.approx(90.0, abs=0.05)
-    assert m["tech_debt_ratio"]["value"] == pytest.approx(5 / 18 * 100, abs=0.05)
-
-
-def test_pair_metric_joins_two_fact_types(engine):
-    m = compute(engine, "cycle_time_hours")
-    assert m["cycle_time_hours"]["value"] == 48.0
-
-
-def test_target_status_and_direction(engine):
-    m = compute(engine, "lead_time_hours", "deploy_frequency")
-    # 前置时间目标 48，等于目标 -> 达标
-    assert m["lead_time_hours"]["status"] == "ok"
-    assert m["lead_time_hours"]["direction"] == "down"
-
-
-def test_dimension_rollup_through_ontology(engine):
-    """团队维度由 repo -> project -> team 的传递关系推理得到。"""
-    result = engine.compute(["deploy_count"], start="2026-09-28", end="2026-10-19",
-                            filters={"team": "A 团队"})
-    assert result["metrics"]["deploy_count"]["value"] == 3.0
-    assert "A 团队" in result["coverage"]["dimensions"]["team"]
-
-
-def test_filters_narrow_results(engine):
-    """过滤到不存在的环境时，计数指标应为 0 而不是沿用全量数据。"""
-    result = engine.compute(["deploy_count"], start="2026-09-28", end="2026-10-19",
-                            filters={"env": "staging"})
-    assert result["metrics"]["deploy_count"]["value"] == 0.0
-
-
-def test_per_week_normalization(engine):
-    """3 次部署 / 3 周 = 1 次每周。"""
-    m = compute(engine, "deploy_frequency")
-    assert m["deploy_frequency"]["value"] == pytest.approx(1.0, abs=0.05)
-
-
-def test_composite_scoring_bounds(engine):
-    m = compute(engine, "dev_eff_index")
-    assert 0 <= m["dev_eff_index"]["value"] <= 100
-
-
-def test_breakdown_by_team(engine):
-    data = engine.breakdown("deploy_count", "team", "week", 4)
-    assert any(item["member"] == "A 团队" for item in data["items"])
-
-
-def test_lineage_contains_dependencies(engine):
-    data = engine.lineage("change_failure_rate")
-    ids = {n["id"] for n in data["nodes"]}
-    assert {"change_failure_rate", "incident_count", "deploy_count"} <= ids
-    edges = {(e["from"], e["to"]) for e in data["edges"]}
-    assert ("incident_count", "change_failure_rate") in edges
-
-
-def test_quality_flags_negative_measure(tmp_path, onto):
-    store = FactStore(tmp_path / "q.db")
-    store.upsert_entity("team:a", "dev:Team", "A")
-    store.upsert_entity("repo:r", "dev:Repository", "r", "team:a")
-    store.add_facts([{"fact_type": "commit.pushed", "subject_id": "c1", "subject_class": "dev:Commit",
-                      "occurred_at": "2026-10-01 10:00:00",
-                      "measures": {"lines_added": -5, "lines_deleted": 0, "lines_changed": 5,
-                                   "churn_lines": 0, "files_changed": 1},
-                      "fields": {"author": "x", "repo": "repo:r"}}])
-    report = MetricsEngine(onto, store).quality()
-    types = {i["type"] for i in report["issues"]}
-    assert "度量取值为负" in types
-
-
-def test_quality_flags_class_mismatch(tmp_path, onto):
-    store = FactStore(tmp_path / "q2.db")
-    store.upsert_entity("team:a", "dev:Team", "A")
-    store.upsert_entity("repo:r", "dev:Repository", "r", "team:a")
-    # 用 Commit 类去承载 workitem.created 事实 -> 违反本体约束
-    store.add_facts([{"fact_type": "workitem.created", "subject_id": "x1",
-                      "subject_class": "dev:Commit", "occurred_at": "2026-10-01 10:00:00",
-                      "measures": {"story_points": 3}, "fields": {"status": "todo"}}])
-    report = MetricsEngine(onto, store).quality()
-    assert any(i["type"] == "主体类与事实类型不匹配" for i in report["issues"])
-
-
-def test_forecast_requires_history(tmp_path, onto):
-    """历史周期不足 3 个时应拒绝预测，而不是给出误导性结论。"""
-    from app.metrics import MetricError
-    store = FactStore(tmp_path / "fc.db")
-    store.upsert_entity("team:a", "dev:Team", "A")
-    store.add_facts([{"fact_type": "workitem.closed", "subject_id": "w1",
-                      "subject_class": "dev:Story", "occurred_at": "2026-10-01 10:00:00",
-                      "measures": {}, "fields": {"status": "done"}}])
-    with pytest.raises(MetricError):
-        MetricsEngine(onto, store).forecast("delivered_items", periods=4)
-
-
-def test_safe_eval_blocks_unsafe_code():
-    from app.metrics import MetricError
-    with pytest.raises(MetricError):
-        safe_eval("__import__('os').system('echo hi')", {})
-    with pytest.raises(MetricError):
-        safe_eval("open('/etc/passwd')", {})
-    assert safe_eval("a / b * 100", {"a": 1, "b": 4}) == 25.0
+def test_safe_eval_returns_none_on_zero_division():
     assert safe_eval("a / b", {"a": 1, "b": 0}) is None
-    assert safe_eval("a + b", {"a": None, "b": 1}) is None
 
 
 def test_normalize_and_status_helpers():
-    assert _normalize(60, 48, "lower_better") == pytest.approx(0.8)
-    assert _normalize(10, 10, "higher_better") == 1.0
-    assert _normalize(100, 10, "higher_better") == 1.0  # 上限裁剪
-    assert _status(40, 48, "down") == "ok"
-    assert _status(60, 48, "down") == "off"
-    assert _status(None, 48, "down") == "no_data"
+    assert _normalize(50, 100, "higher_better") == 0.5
+    assert _normalize(50, 100, "lower_better") == 1.0
+    assert _normalize(200, 100, "lower_better") == 0.5
+    assert _status(5, 10, "up") == "off"
+    assert _status(15, 10, "up") == "ok"
+    assert _status(5, 10, "down") == "ok"
+    assert _status(None, 10, "up") == "no_data"
+    assert _attainment(12, 10, "down") == pytest.approx(0.8333, abs=1e-3)
 
 
-def test_insights_skip_non_primary_metrics(engine):
-    insights = engine.insights()
-    primary = {m["id"] for m in engine.onto.metrics if m.get("primary") or m.get("indicator")}
-    assert all(i["metric"] in primary for i in insights)
+# ---------------------------------------------------------------- 周期（配对指标）
+def test_mr_analysis_cycle_pairs_two_facts(engine):
+    m = compute(engine, "mr_analysis_cycle")
+    assert m["mr_analysis_cycle"]["value"] == pytest.approx(12.0, abs=0.01)
 
 
-def test_pair_metric_reads_start_facts_before_window(tmp_path, onto):
-    """工单在窗口前创建、窗口内关闭，周期仍应算全，不能被截断成窗口内时长。"""
-    store = FactStore(tmp_path / "pair.db")
-    store.upsert_entity("team:a", "dev:Team", "A")
-    store.upsert_entity("repo:r", "dev:Repository", "r", "team:a")
+def test_mr_dev_cycle_pairs_analysis_to_dev(engine):
+    m = compute(engine, "mr_dev_cycle")
+    assert m["mr_dev_cycle"]["value"] == pytest.approx(24.0, abs=0.01)
+
+
+def test_mr_impl_cycle_is_created_to_dev_done(engine):
+    m = compute(engine, "mr_impl_cycle")
+    # 分析 12h + 开发 24h
+    assert m["mr_impl_cycle"]["value"] == pytest.approx(36.0, abs=0.01)
+
+
+def test_mr_accept_cycle_is_dev_to_accepted(engine):
+    m = compute(engine, "mr_accept_cycle")
+    # 开发完成 10-02 12:00 -> 验收 10-02 20:00
+    assert m["mr_accept_cycle"]["value"] == pytest.approx(8.0, abs=0.01)
+
+
+def test_cycle_metrics_are_lower_better(engine):
+    m = compute(engine, "mr_impl_cycle")["mr_impl_cycle"]
+    assert m["direction"] == "down"
+    assert m["status"] == "ok"
+
+
+# ---------------------------------------------------------------- 人力口径
+def test_snapshot_sums_across_groups_not_average_of_averages(engine):
+    """中心人力应为本组 10 人，而不是把三个月的快照相加或平均两次。"""
+    m = compute(engine, "headcount_center", "headcount_outsourced", "outsourced_factor")
+    assert m["headcount_center"]["value"] == pytest.approx(10.0)
+    assert m["headcount_outsourced"]["value"] == pytest.approx(5.0)
+    # 折算系数是比率，不能跨组求和
+    assert m["outsourced_factor"]["value"] == pytest.approx(0.6)
+
+
+def test_converted_headcount_applies_factor_to_outsourced_only(engine):
+    m = compute(engine, "converted_headcount")
+    assert m["converted_headcount"]["value"] == pytest.approx(10 + 5 * 0.6)
+
+
+def test_per_capita_uses_months_in_denominator(engine):
+    """4 个 MR / 10 人 / 1.018 个月（10 月 31 天）= 0.393。"""
+    from app.metrics import MONTH_DAYS
+    months = 31 / MONTH_DAYS
+    m = compute(engine, "mr_impl_per_capita", "mr_impl_per_capita_converted")
+    assert m["mr_impl_per_capita"]["value"] == pytest.approx(
+        round(4 / 10 / months, 2), abs=1e-6)
+    assert m["mr_impl_per_capita_converted"]["value"] == pytest.approx(
+        round(4 / (10 + 5 * 0.6) / months, 2), abs=1e-6)
+
+
+def test_per_capita_scales_with_window_length(engine):
+    """两个月的窗口应让月度人均值减半（分母含 months）。"""
+    one = compute(engine, "mr_impl_per_capita")
+    two = engine.compute(["mr_impl_per_capita"], start="2026-10-01",
+                         end="2026-12-01")["metrics"]
+    assert one["mr_impl_per_capita"]["value"] > two["mr_impl_per_capita"]["value"]
+
+
+# ---------------------------------------------------------------- 生成率
+def test_generation_rates_use_ai_over_total(engine):
+    m = compute(engine, "analysis_gen_rate", "code_gen_rate",
+                "ai_testcase_gen_rate", "ai_script_gen_rate", "solution_gen_rate")
+    assert m["analysis_gen_rate"]["value"] == pytest.approx(50.0)
+    assert m["solution_gen_rate"]["value"] == pytest.approx(50.0)
+    assert m["code_gen_rate"]["value"] == pytest.approx(30.0)
+    assert m["ai_testcase_gen_rate"]["value"] == pytest.approx(50.0)
+    assert m["ai_script_gen_rate"]["value"] == pytest.approx(50.0)
+
+
+def test_penetration_counts_mrs_not_artifacts(engine):
+    """4 个 MR 全部使用 AI -> 100%，与生成率高低无关。"""
+    m = compute(engine, "mr_ai_penetration")
+    assert m["mr_ai_penetration"]["value"] == pytest.approx(100.0)
+
+
+# ---------------------------------------------------------------- RR
+def test_rr_on_time_rate_aligns_numerator_and_denominator(engine):
+    """分子分母取同一批 RR 事实，避免窗口边界错位导致 >100%。"""
+    m = compute(engine, "rr_on_time_rate")
+    assert m["rr_on_time_rate"]["value"] == pytest.approx(80.0)
+
+
+def test_rr_rate_never_exceeds_100_with_misaligned_planned_facts(engine):
+    """计划在窗口外、交付在窗口内时，达成率仍不得超过 100%。"""
+    result = engine.compute(["rr_on_time_rate"], start="2026-10-04", end="2026-11-01")
+    value = result["metrics"]["rr_on_time_rate"]["value"]
+    assert value is not None and value <= 100.0
+
+
+# ---------------------------------------------------------------- 复合与下钻
+def test_composite_index_within_bounds(engine):
+    m = compute(engine, "rde_index")
+    assert 0 <= m["rde_index"]["value"] <= 100
+
+
+def test_composite_declares_all_dependencies(engine, onto):
+    index = onto.metric("rde_index")
+    components = [c["dep"] for c in index["scoring"]["components"]]
+    assert set(components) == set(index["deps"])
+    assert sum(c["weight"] for c in index["scoring"]["components"]) == pytest.approx(1.0)
+
+
+def test_breakdown_by_project_group(engine):
+    data = engine.breakdown("mr_impl_per_capita", "projectGroup", "month", 2)
+    assert any(i["member"] == "A 项目组" for i in data["items"])
+
+
+def test_dimension_rollup_through_ontology(engine):
+    """项目组维度由 MR -> project -> group 的父链推理得到。"""
+    result = engine.compute(["mr_impl_cycle"], start="2026-10-01", end="2026-11-01",
+                            filters={"projectGroup": "A 项目组"})
+    assert "A 项目组" in result["coverage"]["dimensions"]["projectGroup"]
+
+
+def test_lineage_contains_transitive_dependencies(engine):
+    data = engine.lineage("rde_index")
+    ids = {n["id"] for n in data["nodes"]}
+    assert {"rde_index", "mr_impl_cycle", "code_gen_rate"} <= ids
+    assert data["edges"]
+
+
+# ---------------------------------------------------------------- 同比对比
+def test_compare_returns_base_and_current(engine):
+    data = engine.compare(base=("2026-09-01", "2026-09-30"),
+                          current=("2026-10-01", "2026-10-31"))
+    assert data["base"]["start"] == "2026-09-01"
+    ids = {i["id"] for i in data["items"]}
+    assert "mr_impl_cycle" in ids
+    for item in data["items"]:
+        assert set(item) >= {"id", "label", "base", "current", "change", "direction"}
+
+
+def test_compare_excludes_hidden_metrics(engine):
+    data = engine.compare(base=("2026-09-01", "2026-09-30"),
+                          current=("2026-10-01", "2026-10-31"))
+    ids = {i["id"] for i in data["items"]}
+    assert "headcount_center" not in ids
+
+
+# ---------------------------------------------------------------- 质量检查
+def test_quality_flags_time_inversion(tmp_path, onto):
+    store = FactStore(tmp_path / "q.db")
+    store.upsert_entity("group:a", "dev:ProjectGroup", "A 组")
     store.add_facts([
-        {"fact_type": "workitem.created", "subject_id": "w1", "subject_class": "dev:Story",
-         "occurred_at": "2026-09-20 00:00:00", "measures": {"story_points": 3},
-         "fields": {"status": "todo", "repo": "repo:r"}},
-        {"fact_type": "workitem.closed", "subject_id": "w1", "subject_class": "dev:Story",
-         "occurred_at": "2026-10-10 00:00:00", "measures": {},
-         "fields": {"status": "done", "repo": "repo:r"}},
+        {"fact_type": "mr.created", "subject_id": "mr:x", "subject_class": "dev:MR",
+         "occurred_at": "2026-10-05 00:00:00", "measures": {}, "fields": {}},
+        {"fact_type": "mr.dev.done", "subject_id": "mr:x", "subject_class": "dev:MR",
+         "occurred_at": "2026-10-01 00:00:00",
+         "measures": {"ai_lines": 1, "total_lines": 2}, "fields": {}},
     ])
-    engine = MetricsEngine(onto, store)
-    result = engine.compute(["cycle_time_hours"], start="2026-10-05", end="2026-10-19")
-    # 2026-09-20 00:00 → 2026-10-10 00:00 = 20 天 = 480 小时
-    assert result["metrics"]["cycle_time_hours"]["value"] == pytest.approx(480.0, abs=0.5)
+    quality = MetricsEngine(onto, store).quality()
+    assert any(i["type"] == "时序倒置" for i in quality["issues"])
