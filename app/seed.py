@@ -53,27 +53,33 @@ def seed(onto: Ontology, store: FactStore, weeks: int = WEEKS) -> dict[str, Any]
     rng = random.Random(20261116)
     store.clear()
 
-    for dept in DEPARTMENTS:
-        store.upsert_entity(dept["id"], "dev:Organization", dept["label"], None)
-
     facts: list[dict[str, Any]] = []
     relations: list[tuple[str, str, str]] = []
+    entities: list[dict[str, Any]] = []
+
+    def add_entity(entity_id: str, class_id: str, label: str, parent_id: str | None = None,
+                   attrs: dict[str, Any] | None = None) -> None:
+        entities.append({"id": entity_id, "class_id": class_id, "label": label,
+                         "parent_id": parent_id, "attrs": attrs or {}})
+
+    for dept in DEPARTMENTS:
+        add_entity(dept["id"], "dev:Organization", dept["label"])
 
     for team in TEAMS:
         tid, tlabel = team["id"], team["label"]
-        store.upsert_entity(tid, "dev:Team", tlabel, "org:tech")
+        add_entity(tid, "dev:Team", tlabel, "org:tech")
         relations.append(("belongsTo", tid, "org:tech"))
 
         proj_id, proj_label = team["project"]
         repo_id, repo_label = team["repo"]
-        store.upsert_entity(proj_id, "dev:Project", proj_label, tid, {"owner": tlabel})
-        store.upsert_entity(repo_id, "dev:Repository", repo_label, proj_id, {"stack": "backend"})
+        add_entity(proj_id, "dev:Project", proj_label, tid, {"owner": tlabel})
+        add_entity(repo_id, "dev:Repository", repo_label, proj_id, {"stack": "backend"})
         relations += [("belongsTo", proj_id, tid), ("belongsTo", repo_id, proj_id),
                       ("ownedBy", proj_id, tid), ("ownedBy", repo_id, tid)]
 
         for person in team["people"]:
             pid = f"person:{person}"
-            store.upsert_entity(pid, "dev:Person", person, tid)
+            add_entity(pid, "dev:Person", person, tid)
             relations.append(("belongsTo", pid, tid))
 
         sprint_seq = 0
@@ -83,8 +89,8 @@ def seed(onto: Ontology, store: FactStore, weeks: int = WEEKS) -> dict[str, Any]
                 sprint_id = f"sprint:{tid.split(':')[1]}-{sprint_seq:02d}"
                 started = _dt(week, 0)
                 ended = started + timedelta(days=SPRINT_DAYS)
-                store.upsert_entity(sprint_id, "dev:Sprint", f"{tlabel} S{sprint_seq}",
-                                    tid, {"started": _iso(started), "ended": _iso(ended)})
+                add_entity(sprint_id, "dev:Sprint", f"{tlabel} S{sprint_seq}",
+                           tid, {"started": _iso(started), "ended": _iso(ended)})
                 relations.append(("belongsTo", sprint_id, tid))
 
                 improved = week >= IMPROVEMENT_WEEK
@@ -110,8 +116,7 @@ def seed(onto: Ontology, store: FactStore, weeks: int = WEEKS) -> dict[str, Any]
                 cls = {"story": "dev:Story", "defect": "dev:Defect", "techdebt": "dev:TechDebt"}[kind]
                 wid = f"wi:{tid.split(':')[1]}-{week}-{n}"
                 created = _dt(week, rng.uniform(0, 6))
-                store.upsert_entity(wid, cls, f"{tlabel} 工作项 {week}-{n}", sprint_id,
-                                    {"kind": kind})
+                add_entity(wid, cls, f"{tlabel} 工作项 {week}-{n}", sprint_id, {"kind": kind})
                 relations += [("belongsTo", wid, sprint_id), ("inSprint", wid, sprint_id)]
 
                 points = rng.choice([1, 2, 3, 3, 5, 5, 8]) if kind != "defect" else rng.choice([1, 1, 2, 3])
@@ -157,8 +162,8 @@ def seed(onto: Ontology, store: FactStore, weeks: int = WEEKS) -> dict[str, Any]
                     if week >= IMPROVEMENT_WEEK:
                         review_lag *= 0.72
                     merged = pr_created + timedelta(hours=review_lag)
-                    store.upsert_entity(pr_id, "dev:PullRequest", f"PR {wid}", repo_id,
-                                        {"repo_label": repo_label})
+                    add_entity(pr_id, "dev:PullRequest", f"PR {wid}", repo_id,
+                               {"repo_label": repo_label})
                     relations += [("belongsTo", pr_id, repo_id), ("implements", pr_id, wid)]
                     facts.append({
                         "fact_type": "pr.merged", "subject_id": pr_id,
@@ -228,6 +233,7 @@ def seed(onto: Ontology, store: FactStore, weeks: int = WEEKS) -> dict[str, Any]
                     "fields": {"version": f"v1.{week // 4}", "project": proj_label, "repo": repo_id},
                 })
 
+    store.upsert_entities(entities)
     store.add_facts(facts, source="seed")
     store.add_relations(relations)
     store.set_setting("seeded", True)

@@ -311,7 +311,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def create_server(host: str | None = None, port: int | None = None) -> ThreadingHTTPServer:
     context()
-    return ThreadingHTTPServer((host or config.host(), port or config.port()), Handler)
+    # port=0 表示由系统分配空闲端口，不能当作"未指定"处理
+    bind_port = config.port() if port is None else port
+    return ThreadingHTTPServer((host or config.host(), bind_port), Handler)
 
 
 def serve_forever() -> None:

@@ -95,15 +95,25 @@ class FactStore:
     # ---------- 写入 ----------
     def upsert_entity(self, entity_id: str, class_id: str, label: str,
                       parent_id: str | None = None, attrs: dict[str, Any] | None = None) -> None:
+        self.upsert_entities([{"id": entity_id, "class_id": class_id, "label": label,
+                               "parent_id": parent_id, "attrs": attrs or {}}])
+
+    def upsert_entities(self, rows: Iterable[dict[str, Any]]) -> int:
+        payload = [
+            (r["id"], r["class_id"], r["label"], r.get("parent_id"),
+             json.dumps(r.get("attrs") or {}, ensure_ascii=False))
+            for r in rows
+        ]
+        if not payload:
+            return 0
         with self.connection() as conn:
-            conn.execute(
+            conn.executemany(
                 """INSERT INTO entities(id, class_id, label, parent_id, attrs)
                    VALUES(?,?,?,?,?)
                    ON CONFLICT(id) DO UPDATE SET
                      class_id=excluded.class_id, label=excluded.label,
-                     parent_id=excluded.parent_id, attrs=excluded.attrs""",
-                (entity_id, class_id, label, parent_id, json.dumps(attrs or {}, ensure_ascii=False)),
-            )
+                     parent_id=excluded.parent_id, attrs=excluded.attrs""", payload)
+        return len(payload)
 
     def add_fact(self, fact_type: str, subject_id: str, subject_class: str, occurred_at: str,
                  measures: dict[str, Any] | None = None, fields: dict[str, Any] | None = None,
